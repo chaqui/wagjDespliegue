@@ -1,0 +1,427 @@
+version: "3.8"
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-deploy-defaults: &deploy-defaults
+  update_config:
+    parallelism: 1
+    delay: 10s
+    failure_action: rollback
+    monitor: 30s
+    order: start-first
+  restart_policy:
+    condition: on-failure
+    delay: 5s
+    max_attempts: 3
+    window: 120s
+
+# ============================================================
+# SERVICIOS
+# ============================================================
+services:
+
+  # ──────────────────────────────────────────────────────────
+  # TRAEFIK - Proxy Inverso / API Gateway
+  # Dashboard: https://traefik.tu-clinica.com  (basicauth)
+  # ──────────────────────────────────────────────────────────
+  traefik:
+    image: traefik:v3.0
+    command:
+      - "--api.dashboard=true"
+      - "--api.insecure=false"
+      - "--providers.swarm=true"
+      - "--providers.swarm.exposedbydefault=false"
+      - "--providers.swarm.network=public-net"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--certificatesresolvers.letsencrypt.acme.email=tu@email.com"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/certificates/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--log.level=INFO"
+      - "--accesslog=true"
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: ingress
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: ingress
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-certificates:/certificates
+    networks:
+      - public-net
+    deploy:
+      <<: *deploy-defaults
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        # Dashboard — generar hash: echo $(htpasswd -nb admin pass) | sed -e s/\\$/\\$\\$/g
+        - "traefik.http.routers.dashboard.rule=Host(`traefik.tu-clinica.com`)"
+        - "traefik.http.routers.dashboard.entrypoints=websecure"
+        - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.dashboard.service=api@internal"
+        - "traefik.http.routers.dashboard.middlewares=auth-basic"
+        - "traefik.http.middlewares.auth-basic.basicauth.users=admin:$$apr1$$REEMPLAZA$$ESTE_HASH"
+        # CORS reutilizable para todas las APIs
+        - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
+        - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=Content-Type,Authorization"
+        - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=https://app.tu-clinica.com"
+        - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
+        - "traefik.http.middlewares.cors.headers.addvaryheader=true"
+        # Rate limiting global
+        - "traefik.http.middlewares.rate-limit.ratelimit.average=100"
+        - "traefik.http.middlewares.rate-limit.ratelimit.burst=50"
+    logging: *default-logging
+
+  # ──────────────────────────────────────────────────────────
+  # AUTH SERVICE - Backend de gestión de usuarios
+  # Imagen:   ghcr.io/chaqui/auth-service:latest
+  # Ruta:     https://api.tu-clinica.com/auth → :8082
+  # Réplicas: 3
+  # ──────────────────────────────────────────────────────────
+  auth-service:
+    image: ghcr.io/chaqui/auth-service:latest
+    environment:
+      - JWT_EXPIRATION=10800000
+      - SERVER_PORT=8082
+      - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
+      - APP_SERVICE_ENVIRONMENT=production
+      - APP_COOKIE_SECURE=true
+      - APP_COOKIE_HTTP_ONLY=true
+      - APP_COOKIE_SAME_SITE=Strict
+      - LOG_LEVEL=INFO
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,metrics,info
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=when-authorized
+      # ↓ Apuntar a tus BDs externas
+      - DB_HOST=tu-host-bd-externo
+      - DB_PORT=5432
+      - DB_NAME=auth_db
+      - REDIS_HOST=tu-host-redis-externo
+      - REDIS_PORT=6379
+    secrets:
+      - jwt_secret
+      - admin_password
+      - encryption_key
+      - redis_password
+    volumes:
+      - type: bind
+        source: ./keys
+        target: /app/keys
+        read_only: true
+      - type: bind
+        source: ./logs/auth
+        target: /app/logs
+      - type: bind
+        source: ./certs
+        target: /app/certs
+        read_only: true
+    networks:
+      - public-net
+    deploy:
+      <<: *deploy-defaults
+      replicas: 3
+      placement:
+        constraints:
+          - node.labels.auth-service == true
+          - node.role != manager
+        preferences:
+          - spread: node.id
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.auth.rule=Host(`api.tu-clinica.com`) && PathPrefix(`/auth`)"
+        - "traefik.http.routers.auth.entrypoints=websecure"
+        - "traefik.http.routers.auth.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.auth.middlewares=cors,rate-limit,strip-auth"
+        - "traefik.http.middlewares.strip-auth.stripprefix.prefixes=/auth"
+        - "traefik.http.services.auth.loadbalancer.server.port=8082"
+        # Sticky sessions: misma réplica para la misma sesión
+        - "traefik.http.services.auth.loadbalancer.sticky.cookie=true"
+        - "traefik.http.services.auth.loadbalancer.sticky.cookie.name=auth_session"
+        - "traefik.http.services.auth.loadbalancer.sticky.cookie.secure=true"
+        - "traefik.http.services.auth.loadbalancer.healthcheck.path=/actuator/health"
+        - "traefik.http.services.auth.loadbalancer.healthcheck.interval=30s"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging: *default-logging
+
+  # ──────────────────────────────────────────────────────────
+  # FRONTEND USUARIOS - UI de gestión de usuarios
+  # Imagen:   frontend-usuarios:1.0.0
+  # Ruta:     https://app.tu-clinica.com/usuarios → :80
+  # Réplicas: 2
+  # ──────────────────────────────────────────────────────────
+  frontend-usuarios:
+    image: ${FRONTEND_USUARIOS_IMAGE:-frontend-usuarios:1.0.0}
+    environment:
+      - API_URL=https://api.tu-clinica.com/auth
+    networks:
+      - public-net
+    deploy:
+      <<: *deploy-defaults
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+        preferences:
+          - spread: node.id
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.frontend-usuarios.rule=Host(`app.tu-clinica.com`) && PathPrefix(`/usuarios`)"
+        - "traefik.http.routers.frontend-usuarios.entrypoints=websecure"
+        - "traefik.http.routers.frontend-usuarios.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.frontend-usuarios.middlewares=rate-limit"
+        - "traefik.http.services.frontend-usuarios.loadbalancer.server.port=80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging: *default-logging
+
+  # ──────────────────────────────────────────────────────────
+  # CLÍNICA BACKEND - Backend core
+  # Imagen:   ghcr.io/chaqui/backend-clinica:latest
+  # Ruta:     https://api.tu-clinica.com/api → :8080
+  # Réplicas: 2
+  # ──────────────────────────────────────────────────────────
+  clinica-backend:
+    image: ghcr.io/chaqui/backend-clinica:latest
+    environment:
+      # ↓ Apuntar a tu BD externa
+      - DB_URL=jdbc:postgresql://tu-host-bd-externo:5432/clinicaMedica
+      - DB_USER=clinica
+      - FRONTEND_URL=https://app.tu-clinica.com
+      - APP_BASE_URL=https://api.tu-clinica.com
+      - SERVICE_BASE_URL=https://api.tu-clinica.com
+      - JWT_PUBLIC_KEY_PATH=/run/secrets/jwt_public_key
+      - JWT_PRIVATE_KEY_PATH=/run/secrets/jwt_private_key
+      - AUTH_SERVICE_URL=http://auth-service:8082
+      - MAX_FILE_SIZE=5MB
+      - MAX_REQUEST_SIZE=10MB
+    secrets:
+      - db_password
+      - jwt_public_key
+      - jwt_private_key
+    volumes:
+      - clinica-uploads:/app/uploads
+      - clinica-logs:/var/log/clinica-medica
+    networks:
+      - public-net
+    deploy:
+      <<: *deploy-defaults
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+        preferences:
+          - spread: node.id
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.clinica-api.rule=Host(`api.tu-clinica.com`) && PathPrefix(`/api`)"
+        - "traefik.http.routers.clinica-api.entrypoints=websecure"
+        - "traefik.http.routers.clinica-api.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.clinica-api.middlewares=cors,rate-limit"
+        - "traefik.http.services.clinica-api.loadbalancer.server.port=8080"
+        - "traefik.http.services.clinica-api.loadbalancer.healthcheck.path=/actuator/health"
+        - "traefik.http.services.clinica-api.loadbalancer.healthcheck.interval=30s"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging: *default-logging
+
+  # ──────────────────────────────────────────────────────────
+  # FRONTEND CLÍNICA - Frontend principal (core)
+  # Imagen:   ${REGISTRY}/${IMAGE_REPO}:${IMAGE_TAG}
+  # Ruta:     https://app.tu-clinica.com/ (raíz) → :3000
+  # Réplicas: 3
+  # ──────────────────────────────────────────────────────────
+  frontend-clinica:
+    image: ${REGISTRY:-ghcr.io/chaqui}/${IMAGE_REPO:-frontend-clinica}:${IMAGE_TAG:-latest}
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - API_URL=https://api.tu-clinica.com
+      - API_AUTH_URL=https://api.tu-clinica.com/auth
+      - API_PACIENTES_URL=https://api.tu-clinica.com/api/pacientes
+      - API_CONSULTAS_URL=https://api.tu-clinica.com/api/consultas
+      - API_RECETAS_URL=https://api.tu-clinica.com/api/recetas
+      - WEBSOCKET_URL=wss://api.tu-clinica.com/ws
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - ENABLE_SSR=true
+      - CACHE_TTL=3600
+    volumes:
+      - clinica-frontend-data:/app/data
+      - /etc/timezone:/etc/timezone:ro
+    networks:
+      - public-net
+    deploy:
+      <<: *deploy-defaults
+      replicas: 3
+      placement:
+        constraints:
+          - node.role == worker
+        preferences:
+          - spread: node.id
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+      labels:
+        - "traefik.enable=true"
+        # priority=1 (más baja): captura solo si ninguna ruta más específica coincide
+        - "traefik.http.routers.frontend-core.rule=Host(`app.tu-clinica.com`)"
+        - "traefik.http.routers.frontend-core.entrypoints=websecure"
+        - "traefik.http.routers.frontend-core.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.frontend-core.middlewares=rate-limit"
+        - "traefik.http.routers.frontend-core.priority=1"
+        - "traefik.http.services.frontend-core.loadbalancer.server.port=3000"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging: *default-logging
+
+  # ──────────────────────────────────────────────────────────
+  # CATÁLOGOS BACKEND
+  # Imagen:   ghcr.io/chaqui/catalogos:main
+  # Ruta:     https://api.tu-clinica.com/catalogos → :3001
+  # Réplicas: 2
+  # ──────────────────────────────────────────────────────────
+  catalogos:
+    image: ghcr.io/chaqui/catalogos:main
+    environment:
+      - DB=mysql
+      # ↓ Apuntar a tus BDs externas
+      - MYSQL_HOST=tu-host-mysql-externo
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=catalogos
+      - MYSQL_USER=catalogos_user
+      - MYSQL_PASSWORD_FILE=/run/secrets/mysql_password
+      - MONGODB_URI=mongodb://tu-host-mongo-externo:27017/catalogos
+      - AUTH_SERVICE_URL=http://auth-service:8082
+      - SERVICE_NAME=catalogos
+      - SERVICE_PORT=3001
+      - SERVICE_URL=http://catalogos:3001
+    secrets:
+      - mysql_password
+    networks:
+      - public-net
+    deploy:
+      <<: *deploy-defaults
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+        preferences:
+          - spread: node.id
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.catalogos.rule=Host(`api.tu-clinica.com`) && PathPrefix(`/catalogos`)"
+        - "traefik.http.routers.catalogos.entrypoints=websecure"
+        - "traefik.http.routers.catalogos.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.catalogos.middlewares=cors,rate-limit,strip-catalogos"
+        - "traefik.http.middlewares.strip-catalogos.stripprefix.prefixes=/catalogos"
+        - "traefik.http.services.catalogos.loadbalancer.server.port=3001"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging: *default-logging
+
+# ============================================================
+# REDES
+# ============================================================
+networks:
+  public-net:
+    driver: overlay
+    attachable: true
+
+# ============================================================
+# VOLÚMENES (solo de aplicación, sin BDs)
+# ============================================================
+volumes:
+  traefik-certificates:
+    driver: local
+  clinica-uploads:
+    driver: local
+  clinica-logs:
+    driver: local
+  clinica-frontend-data:
+    driver: local
+
+# ============================================================
+# SECRETOS (todos externos - crear antes del deploy)
+# ============================================================
+secrets:
+  jwt_secret:
+    external: true
+  admin_password:
+    external: true
+  encryption_key:
+    external: true
+  redis_password:
+    external: true
+  db_password:
+    external: true
+  jwt_public_key:
+    external: true
+  jwt_private_key:
+    external: true
+  mysql_password:
+    external: true
