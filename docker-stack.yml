@@ -105,9 +105,10 @@ services:
       - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,metrics,info
       - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=when-authorized
       # ↓ Apuntar a tus BDs externas
-      - DB_HOST=tu-host-bd-externo
+      - DB_HOST=${DB_HOST:-tu-host-bd-externo}
       - DB_PORT=5432
       - DB_NAME=auth_db
+      - DB_SCHEMA=${DB_SCHEMA_AUTH:-auth}
       - REDIS_HOST=tu-host-redis-externo
       - REDIS_PORT=6379
     secrets:
@@ -119,7 +120,6 @@ services:
       - type: bind
         source: ./keys
         target: /app/keys
-        read_only: true
       - type: bind
         source: ./logs/auth
         target: /app/logs
@@ -127,6 +127,10 @@ services:
         source: ./certs
         target: /app/certs
         read_only: true
+      # Carpeta con llave pública para compartir con otros servicios
+      - type: bind
+        source: ./pubkeys
+        target: /app/keys/public
     networks:
       - public-net
     deploy:
@@ -176,7 +180,7 @@ services:
   frontend-usuarios:
     image: ${FRONTEND_USUARIOS_IMAGE:-frontend-usuarios:1.0.0}
     environment:
-      - API_URL=https://api.tu-clinica.com/auth
+      - API_URL=https://${API_HOST:-api.tu-clinica.com}/auth
     networks:
       - public-net
     deploy:
@@ -219,7 +223,9 @@ services:
     image: ghcr.io/chaqui/backend-clinica:latest
     environment:
       # ↓ Apuntar a tu BD externa
-      - DB_URL=jdbc:postgresql://tu-host-bd-externo:5432/clinicaMedica
+      - DB_URL=jdbc:postgresql://${DB_HOST:-tu-host-bd-externo}:5432/clinicaMedica
+      - DB_HOST=${DB_HOST:-tu-host-bd-externo}
+      - DB_SCHEMA=${DB_SCHEMA_CLINICA:-public}
       - DB_USER=clinica
       - FRONTEND_URL=https://app.tu-clinica.com
       - APP_BASE_URL=https://api.tu-clinica.com
@@ -236,6 +242,22 @@ services:
     volumes:
       - clinica-uploads:/app/uploads
       - clinica-logs:/var/log/clinica-medica
+      - type: bind
+         source: ./certs
+         target: /app/certs
+         read_only: true
+      - type: bind
+        source: ./keys
+        target: /app/keys
+      - type: bind
+        source: ./logs/clinica-backend
+        target: /app/logs
+      # Carpeta con llave pública para compartir con otros servicios
+      - type: bind
+        source: ./pubkeys
+        target: /app/keys/public
+        read_only: true
+      
     networks:
       - public-net
     deploy:
@@ -281,12 +303,12 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - API_URL=https://api.tu-clinica.com
-      - API_AUTH_URL=https://api.tu-clinica.com/auth
-      - API_PACIENTES_URL=https://api.tu-clinica.com/api/pacientes
-      - API_CONSULTAS_URL=https://api.tu-clinica.com/api/consultas
-      - API_RECETAS_URL=https://api.tu-clinica.com/api/recetas
-      - WEBSOCKET_URL=wss://api.tu-clinica.com/ws
+      - API_URL=https://${API_HOST:-api.tu-clinica.com}
+      - API_AUTH_URL=https://${API_HOST:-api.tu-clinica.com}/auth
+      - API_PACIENTES_URL=https://${API_HOST:-api.tu-clinica.com}/api/pacientes
+      - API_CONSULTAS_URL=https://${API_HOST:-api.tu-clinica.com}/api/consultas
+      - API_RECETAS_URL=https://${API_HOST:-api.tu-clinica.com}/api/recetas
+      - WEBSOCKET_URL=wss://${API_HOST:-api.tu-clinica.com}/ws
       - LOG_LEVEL=info
       - LOG_FORMAT=json
       - ENABLE_SSR=true
@@ -339,9 +361,10 @@ services:
     environment:
       - DB=mysql
       # ↓ Apuntar a tus BDs externas
-      - MYSQL_HOST=tu-host-mysql-externo
+      - MYSQL_HOST=${DB_HOST:-tu-host-mysql-externo}
       - MYSQL_PORT=3306
       - MYSQL_DATABASE=catalogos
+      - DB_SCHEMA=${DB_SCHEMA_CATALOGOS:-catalogos}
       - MYSQL_USER=catalogos_user
       - MYSQL_PASSWORD_FILE=/run/secrets/mysql_password
       - MONGODB_URI=mongodb://tu-host-mongo-externo:27017/catalogos
@@ -383,6 +406,14 @@ services:
       retries: 3
       start_period: 30s
     logging: *default-logging
+    volumes:
+      - type: bind
+        source: ./pubkeys
+        target: /app/keys/public
+      - type: bind
+        source: ./keys
+        target: /app/keys
+      
 
 # ============================================================
 # REDES
