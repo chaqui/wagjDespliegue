@@ -109,10 +109,6 @@ services:
       - DB_PORT=5432
       - DB_NAME=auth_db
       - DB_SCHEMA=${DB_SCHEMA_AUTH:-auth}
-    secrets:
-      - jwt_secret
-      - admin_password
-      - encryption_key
     volumes:
       - type: bind
         source: ./keys
