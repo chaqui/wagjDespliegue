@@ -94,21 +94,14 @@ services:
   auth-service:
     image: ghcr.io/chaqui/auth-service:latest
     environment:
-      - JWT_EXPIRATION=10800000
-      - SERVER_PORT=8082
+      - DB_URL=${DB_URL_AUTH:-jdbc:postgresql://host.docker.internal:5435/gestion_usuarios}
+      - DB_USERNAME=${DB_USERNAME_AUTH:-usuarios}
+      - DB_PASSWORD=${DB_PASSWORD_AUTH:-a3f8b2c1-9d4e-4a7f-b6c5-8e2d1f0a9b3c}
+      - JWT_SECRET=${JWT_SECRET:-mi_jwt_secret}
       - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
-      - APP_SERVICE_ENVIRONMENT=production
-      - APP_COOKIE_SECURE=true
-      - APP_COOKIE_HTTP_ONLY=true
-      - APP_COOKIE_SAME_SITE=Strict
-      - LOG_LEVEL=INFO
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,metrics,info
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=when-authorized
-      # ↓ Apuntar a tus BDs externas
-      - DB_HOST=${DB_HOST:-tu-host-bd-externo}
-      - DB_PORT=5432
-      - DB_NAME=auth_db
-      - DB_SCHEMA=${DB_SCHEMA_AUTH:-auth}
+      - SPRING_DATASOURCE_URL=${DB_URL_AUTH:-jdbc:postgresql://host.docker.internal:5435/gestion_usuarios}
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-usuarios}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-a3f8b2c1-9d4e-4a7f-b6c5-8e2d1f0a9b3c}
     volumes:
       - type: bind
         source: ./keys
