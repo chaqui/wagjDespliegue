@@ -228,10 +228,6 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8082
       - MAX_FILE_SIZE=5MB
       - MAX_REQUEST_SIZE=10MB
-    secrets:
-      - db_password
-      - jwt_public_key
-      - jwt_private_key
     volumes:
       - clinica-uploads:/app/uploads
       - clinica-logs:/var/log/clinica-medica
@@ -365,8 +361,7 @@ services:
       - SERVICE_NAME=catalogos
       - SERVICE_PORT=3001
       - SERVICE_URL=http://catalogos:3001
-    secrets:
-      - mysql_password
+
     networks:
       - public-net
     deploy:
@@ -429,21 +424,3 @@ volumes:
   clinica-frontend-data:
     driver: local
 
-# ============================================================
-# SECRETOS (todos externos - crear antes del deploy)
-# ============================================================
-secrets:
-  jwt_secret:
-    external: true
-  admin_password:
-    external: true
-  encryption_key:
-    external: true
-  db_password:
-    external: true
-  jwt_public_key:
-    external: true
-  jwt_private_key:
-    external: true
-  mysql_password:
-    external: true
