@@ -96,14 +96,15 @@ services:
   auth-service:
     image: ghcr.io/chaqui/auth-service:latest
     environment:
-      - DB_URL=${DB_URL_AUTH:-jdbc:postgresql://host.docker.internal:5435/gestion_usuarios}
-      - DB_USERNAME=${DB_USERNAME_AUTH:-usuarios}
-      - DB_PASSWORD=${DB_PASSWORD_AUTH:-a3f8b2c1-9d4e-4a7f-b6c5-8e2d1f0a9b3c}
+      - DB_URL=${DB_URL:-jdbc:postgresql://host.docker.internal:5435/gestion_usuarios}
+      - DB_USERNAME=${DB_USERNAME:-usuarios}
+      - DB_PASSWORD=${DB_PASSWORD:-change_me}
+      - DB_SCHEMA=${DB_SCHEMA:-public}
       - JWT_SECRET=${JWT_SECRET:-mi_jwt_secret}
       - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
-      - SPRING_DATASOURCE_URL=${DB_URL_AUTH:-jdbc:postgresql://host.docker.internal:5435/gestion_usuarios}
-      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-usuarios}
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-a3f8b2c1-9d4e-4a7f-b6c5-8e2d1f0a9b3c}
+      - SPRING_DATASOURCE_URL=${DB_URL}
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
     volumes:
       - type: bind
         source: ./keys
