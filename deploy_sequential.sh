@@ -22,6 +22,43 @@ fi
 
 log "Iniciando despliegue secuencial usando $COMPOSE_FILE"
 
+# Verificar si el nodo es parte de un Swarm y, si no lo es, intentar inicializarlo
+check_and_init_swarm() {
+  SWARM_LOCAL=$($DOCKER_CMD info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null || echo "inactive")
+  CONTROL_AVAILABLE=$($DOCKER_CMD info --format '{{.Swarm.ControlAvailable}}' 2>/dev/null || echo "false")
+  if [ "$SWARM_LOCAL" != "active" ]; then
+    log "Swarm no activo en este nodo. Se intentará inicializar swarm localmente..."
+    ADVERTISE_ADDR=""
+    ADVERTISE_ADDR=$(ip route get 1.1.1.1 2>/dev/null | awk '/src/ {for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}' || true)
+    if [ -z "$ADVERTISE_ADDR" ]; then
+      ADVERTISE_ADDR=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
+    fi
+    if [ -z "$ADVERTISE_ADDR" ]; then
+      ADVERTISE_ADDR=$(hostname -i 2>/dev/null || true)
+    fi
+    if [ -z "$ADVERTISE_ADDR" ]; then
+      log "ERROR: no se pudo detectar una IP para --advertise-addr. Ejecuta 'docker swarm init' manualmente."
+      exit 1
+    fi
+    log "Inicializando swarm con --advertise-addr $ADVERTISE_ADDR"
+    if $DOCKER_CMD swarm init --advertise-addr "$ADVERTISE_ADDR" 2>&1 | tee -a "$LOG"; then
+      log "Swarm inicializado correctamente en este nodo (manager)."
+    else
+      log "ERROR: fallo al inicializar swarm en este nodo."
+      exit 1
+    fi
+  else
+    if [ "$CONTROL_AVAILABLE" != "true" ]; then
+      log "ERROR: este nodo pertenece a un swarm pero no es manager (ControlAvailable=false)."
+      log "Para desplegar un stack debes usar un manager. Ejecuta 'docker swarm join' en este nodo con el token de manager, o ejecuta este script en un manager."
+      exit 1
+    fi
+    log "Swarm activo y nodo es manager."
+  fi
+}
+
+check_and_init_swarm
+
 # deploy full stack (services will start)
 log "Iniciando despliegue del stack $MAIN_STACK"
 if ! $DOCKER_CMD stack deploy -c "$COMPOSE_FILE" "$MAIN_STACK" 2>&1 | tee -a "$LOG"; then
@@ -49,8 +86,10 @@ for svc in $SERVICES; do
   # inspect desired replicas (empty => global)
   rep=$($DOCKER_CMD service inspect --format '{{if .Spec.Mode.Replicated}}{{.Spec.Mode.Replicated.Replicas}}{{end}}' "$svc" 2>/dev/null || true)
   if [ -n "$rep" ]; then
-    echo "$svc $rep" >> "$MAPPING_FILE"
-    log "Iniciando escala de $svc a 0 (antes $rep)"
+    # Forzar una réplica por servicio al restaurar
+    desired_rep=1
+    echo "$svc $desired_rep" >> "$MAPPING_FILE"
+    log "Iniciando escala de $svc a 0 (antes $rep, se restaurará a $desired_rep)"
     if $DOCKER_CMD service update --replicas 0 "$svc" 2>&1 | tee -a "$LOG"; then
       log "Escalado completado para $svc"
     else
