@@ -243,9 +243,9 @@ services:
       - clinica-uploads:/app/uploads
       - clinica-logs:/var/log/clinica-medica
       - type: bind
-         source: ./certs
-         target: /app/certs
-         read_only: true
+        source: ./certs
+        target: /app/certs
+        read_only: true
       - type: bind
         source: ./keys
         target: /app/keys
