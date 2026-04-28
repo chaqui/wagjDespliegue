@@ -21,7 +21,6 @@ else
 fi
 
 log "Iniciando despliegue secuencial usando $COMPOSE_FILE"
-
 # Verificar si el nodo es parte de un Swarm y, si no lo es, intentar inicializarlo
 check_and_init_swarm() {
   SWARM_LOCAL=$($DOCKER_CMD info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null || echo "inactive")
@@ -58,6 +57,38 @@ check_and_init_swarm() {
 }
 
 check_and_init_swarm
+
+# Si ya existe un despliegue previo del stack, eliminarlo antes de desplegar de nuevo
+remove_stack_if_exists() {
+  if $DOCKER_CMD stack ls --format '{{.Name}}' 2>/dev/null | grep -wq "$MAIN_STACK"; then
+    log "Detectado despliegue previo del stack '$MAIN_STACK'. Procediendo a remover..."
+    if $DOCKER_CMD stack rm "$MAIN_STACK" 2>&1 | tee -a "$LOG"; then
+      log "Comando stack rm enviado para $MAIN_STACK. Esperando a que los servicios se retiren..."
+      # esperar hasta que no queden servicios con la etiqueta del stack (timeout)
+      WAIT=0
+      MAX_WAIT_REMOVE=60
+      while [ $WAIT -lt $MAX_WAIT_REMOVE ]; do
+        remaining=$($DOCKER_CMD service ls --filter label=com.docker.stack.namespace=$MAIN_STACK --format '{{.Name}}' 2>/dev/null || true)
+        if [ -z "$remaining" ]; then
+          log "Servicios del stack $MAIN_STACK eliminados."
+          break
+        fi
+        sleep 3
+        WAIT=$((WAIT+3))
+      done
+      if [ $WAIT -ge $MAX_WAIT_REMOVE ]; then
+        log "ADVERTENCIA: tiempo de espera agotado al eliminar servicios del stack $MAIN_STACK"
+      fi
+    else
+      log "ERROR: fallo al ejecutar 'docker stack rm $MAIN_STACK'"
+      exit 1
+    fi
+  else
+    log "No existe un despliegue previo del stack '$MAIN_STACK'."
+  fi
+}
+
+remove_stack_if_exists
 
 # Preparación: crear carpetas necesarias para montajes bind (keys, logs, certs, pubkeys)
 prepare_dirs() {
