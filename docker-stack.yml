@@ -1,5 +1,3 @@
-version: "3.8"
-
 x-logging: &default-logging
   driver: json-file
   options:
@@ -62,13 +60,13 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 0
-        resources:
-          limits:
-            cpus: '0.5'
-            memory: 256M
-          reservations:
-            cpus: '0.25'
-            memory: 128M
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
       labels:
         - "traefik.enable=true"
         # Dashboard — generar hash: echo $(htpasswd -nb admin pass) | sed -e s/\\$/\\$\\$/g
