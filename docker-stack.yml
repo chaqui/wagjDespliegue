@@ -61,7 +61,7 @@ services:
       - public-net
     deploy:
       <<: *deploy-defaults
-      replicas: 1
+      replicas: 0
       placement:
         constraints:
           - node.role == manager
@@ -128,7 +128,7 @@ services:
       - public-net
     deploy:
       <<: *deploy-defaults
-      replicas: 1
+      replicas: 0
       placement:
         constraints:
           - node.labels.auth-service == true
@@ -178,7 +178,7 @@ services:
       - public-net
     deploy:
       <<: *deploy-defaults
-      replicas: 1
+      replicas: 0
       placement:
         constraints:
           - node.role == worker
@@ -251,7 +251,7 @@ services:
       - public-net
     deploy:
       <<: *deploy-defaults
-      replicas: 1
+      replicas: 0
       placement:
         constraints:
           - node.role == worker
