@@ -109,13 +109,10 @@ services:
       - DB_PORT=5432
       - DB_NAME=auth_db
       - DB_SCHEMA=${DB_SCHEMA_AUTH:-auth}
-      - REDIS_HOST=tu-host-redis-externo
-      - REDIS_PORT=6379
     secrets:
       - jwt_secret
       - admin_password
       - encryption_key
-      - redis_password
     volumes:
       - type: bind
         source: ./keys
@@ -445,8 +442,6 @@ secrets:
   admin_password:
     external: true
   encryption_key:
-    external: true
-  redis_password:
     external: true
   db_password:
     external: true
