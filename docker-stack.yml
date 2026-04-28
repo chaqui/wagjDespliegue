@@ -120,8 +120,7 @@ services:
     networks:
       - public-net
     deploy:
-      <<: *deploy-defaults
-      replicas: 0
+      replicas: 1
       placement:
         constraints:
           - node.labels.auth-service == true

@@ -185,16 +185,12 @@ if [ -z "$PEM_PATH" ]; then
     PEM_PATH=$(ls ./keys/public/*.pem | head -n1)
   fi
 
-  # Si aún no hay .pem, crear uno provisional para permitir avance (solo pruebas)
+  # Si aún no hay .pem, registrar error y mostrar logs del servicio
   if [ -z "$PEM_PATH" ]; then
-    log "ADVERTENCIA: tras forzar reinicio no se encontró .pem. Se creará un PEM provisional de prueba en ./keys/public/test.pem"
-    mkdir -p ./keys/public || true
-    echo "-----BEGIN TEST PEM-----" > ./keys/public/test.pem
-    echo "GENERATED-TEST-PEM $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> ./keys/public/test.pem
-    echo "-----END TEST PEM-----" >> ./keys/public/test.pem
-    chmod 640 ./keys/public/test.pem || true
-    PEM_PATH=./keys/public/test.pem
-    log "PEM provisional creado: $PEM_PATH"
+    log "ERROR: tras forzar reinicio no se encontró .pem en ./keys ni en ./keys/public"
+    log "Revisando logs del servicio auth-service para diagnosticar..."
+    $DOCKER_CMD service logs ${MAIN_STACK}_auth-service --tail 500 2>&1 | tee -a "$LOG" || true
+    exit 1
   fi
 fi
 log "PEM detectado: $PEM_PATH"
