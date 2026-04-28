@@ -59,6 +59,26 @@ check_and_init_swarm() {
 
 check_and_init_swarm
 
+# Preparación: crear carpetas necesarias para montajes bind (keys, logs, certs, pubkeys)
+prepare_dirs() {
+  DIRS=("./keys" "./keys/public" "./logs/auth" "./logs/clinica-backend" "./certs" "./pubkeys")
+  for d in "${DIRS[@]}"; do
+    if [ ! -d "$d" ]; then
+      log "Creando carpeta $d"
+      mkdir -p "$d" || { log "ERROR: fallo creando $d"; exit 1; }
+      chmod 750 "$d" || true
+    else
+      log "Carpeta $d ya existe"
+    fi
+  done
+  # Asegurar permisos mínimos de keys
+  if [ -d "./keys" ]; then
+    chmod -R 750 ./keys || true
+  fi
+}
+
+prepare_dirs
+
 # deploy full stack (services will start)
 log "Iniciando despliegue del stack $MAIN_STACK"
 if ! $DOCKER_CMD stack deploy -c "$COMPOSE_FILE" "$MAIN_STACK" 2>&1 | tee -a "$LOG"; then
