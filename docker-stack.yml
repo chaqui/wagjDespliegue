@@ -102,9 +102,6 @@ services:
       - DB_SCHEMA=${DB_SCHEMA}
       - JWT_SECRET=${JWT_SECRET}
       - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
-      - SPRING_DATASOURCE_URL=${DB_URL}
-      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
     volumes:
       - type: bind
         source: ./keys
