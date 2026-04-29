@@ -155,12 +155,12 @@ services:
 
   # ──────────────────────────────────────────────────────────
   # FRONTEND USUARIOS - UI de gestión de usuarios
-  # Imagen:   frontend-usuarios:1.0.0
+  # Imagen:   ghcr.io/chaqui/frontend-usuarios:latest
   # Ruta:     https://app.tu-clinica.com/usuarios → :80
   # Réplicas: 2
   # ──────────────────────────────────────────────────────────
   frontend-usuarios:
-    image: ${FRONTEND_USUARIOS_IMAGE:-frontend-usuarios:1.0.0}
+    image:  ghcr.io/chaqui/frontend-usuarios:latest
     environment:
       - API_URL=https://${API_HOST:-api.tu-clinica.com}/auth
     networks:
@@ -193,19 +193,16 @@ services:
   clinica-backend:
     image: ghcr.io/chaqui/backend-clinica:latest
     environment:
-      # ↓ Apuntar a tu BD externa
-      - DB_URL=jdbc:postgresql://${DB_HOST:-tu-host-bd-externo}:5432/clinicaMedica
-      - DB_HOST=${DB_HOST:-tu-host-bd-externo}
-      - DB_SCHEMA=${DB_SCHEMA_CLINICA:-public}
-      - DB_USER=clinica
-      - FRONTEND_URL=https://app.tu-clinica.com
-      - APP_BASE_URL=https://api.tu-clinica.com
-      - SERVICE_BASE_URL=https://api.tu-clinica.com
-      - JWT_PUBLIC_KEY_PATH=/run/secrets/jwt_public_key
-      - JWT_PRIVATE_KEY_PATH=/run/secrets/jwt_private_key
+      - DB_URL=${DB_URL}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_SCHEMA=${DB_SCHEMA_CLINICA}
+      - JWT_SECRET=${JWT_SECRET}
+      - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
       - AUTH_SERVICE_URL=http://auth-service:8082
-      - MAX_FILE_SIZE=5MB
-      - MAX_REQUEST_SIZE=10MB
+      - SERVICE_NAME=clinica-backend
+      - SERVICE_PORT=8080
+      - SERVICE_URL=http://clinica-backend:8080
     volumes:
       - clinica-uploads:/app/uploads
       - clinica-logs:/var/log/clinica-medica
@@ -250,12 +247,12 @@ services:
 
   # ──────────────────────────────────────────────────────────
   # FRONTEND CLÍNICA - Frontend principal (core)
-  # Imagen:   ${REGISTRY}/${IMAGE_REPO}:${IMAGE_TAG}
+  # Imagen:   ghcr.io/chaqui/frontend-clinica:latest
   # Ruta:     https://app.tu-clinica.com/ (raíz) → :3000
   # Réplicas: 3
   # ──────────────────────────────────────────────────────────
   frontend-clinica:
-    image: ${REGISTRY:-ghcr.io/chaqui}/${IMAGE_REPO:-frontend-clinica}:${IMAGE_TAG:-latest}
+    image:  ghcr.io/chaqui/frontend-clinica:latest
     environment:
       - NODE_ENV=production
       - PORT=3000
