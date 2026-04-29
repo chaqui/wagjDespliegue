@@ -145,12 +145,7 @@ services:
         - "traefik.http.services.auth.loadbalancer.sticky.cookie.secure=true"
         - "traefik.http.services.auth.loadbalancer.healthcheck.path=/api/services"
         - "traefik.http.services.auth.loadbalancer.healthcheck.interval=30s"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8082/api/services || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 90s
+
     logging: *default-logging
 
   # ──────────────────────────────────────────────────────────
@@ -182,12 +177,6 @@ services:
         - "traefik.http.routers.frontend-usuarios.tls.certresolver=letsencrypt"
         - "traefik.http.routers.frontend-usuarios.middlewares=rate-limit"
         - "traefik.http.services.frontend-usuarios.loadbalancer.server.port=80"
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
     logging: *default-logging
 
   # ──────────────────────────────────────────────────────────
@@ -252,12 +241,6 @@ services:
         - "traefik.http.services.clinica-api.loadbalancer.server.port=8080"
         - "traefik.http.services.clinica-api.loadbalancer.healthcheck.path=/actuator/health"
         - "traefik.http.services.clinica-api.loadbalancer.healthcheck.interval=30s"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
     logging: *default-logging
 
   # ──────────────────────────────────────────────────────────
@@ -305,12 +288,6 @@ services:
         - "traefik.http.routers.frontend-core.middlewares=rate-limit"
         - "traefik.http.routers.frontend-core.priority=1"
         - "traefik.http.services.frontend-core.loadbalancer.server.port=3000"
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
     logging: *default-logging
 
   # ──────────────────────────────────────────────────────────
@@ -356,12 +333,6 @@ services:
         - "traefik.http.routers.catalogos.middlewares=cors,rate-limit,strip-catalogos"
         - "traefik.http.middlewares.strip-catalogos.stripprefix.prefixes=/catalogos"
         - "traefik.http.services.catalogos.loadbalancer.server.port=3001"
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
     logging: *default-logging
     volumes:
       - type: bind
