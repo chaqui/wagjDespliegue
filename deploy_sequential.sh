@@ -240,7 +240,7 @@ API_OK=0
 MAX_API_WAIT=120
 elapsed=0
 while [ $elapsed -le $MAX_API_WAIT ]; do
-  $SUDO_PREFIX $DOCKER_CMD run --rm --network public-net curlimages/curl:latest \
+  $SUDO_PREFIX $DOCKER_CMD run --rm --network ${MAIN_STACK}_public-net curlimages/curl:latest \
     curl -sS --connect-timeout 5 http://auth-service:8082/api/services \
     >/tmp/auth_probe 2>/tmp/auth_probe_err || true
   CURL_BODY=$(cat /tmp/auth_probe 2>/dev/null || true)
