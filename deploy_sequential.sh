@@ -15,9 +15,12 @@ check_cmd docker
 # Determinar si se debe usar sudo para Docker (permiso sobre /var/run/docker.sock)
 if docker info >/dev/null 2>&1; then
   DOCKER_CMD="docker"
+  SUDO_PREFIX=""
 else
-  DOCKER_CMD="sudo docker"
-  log "Nota: usando sudo para comandos Docker (permiso sobre /var/run/docker.sock)"
+  # usar -E para preservar variables de entorno cuando se ejecute con sudo
+  DOCKER_CMD="docker"
+  SUDO_PREFIX="sudo -E"
+  log "Nota: usando sudo -E para comandos Docker (permiso sobre /var/run/docker.sock). Se preservarán variables de entorno." 
 fi
 
 log "Iniciando despliegue secuencial usando $COMPOSE_FILE"
@@ -97,7 +100,7 @@ prepare_dirs() {
     if [ ! -d "$d" ]; then
       log "Creando carpeta $d"
       mkdir -p "$d" || { log "ERROR: fallo creando $d"; exit 1; }
-      chmod 750 "$d" || true
+      chmod 777 "$d" || true
     else
       log "Carpeta $d ya existe"
     fi
@@ -112,7 +115,18 @@ prepare_dirs
 
 # deploy full stack (services will start)
 log "Iniciando despliegue del stack $MAIN_STACK"
-if ! $DOCKER_CMD stack deploy -c "$COMPOSE_FILE" "$MAIN_STACK" 2>&1 | tee -a "$LOG"; then
+# Cargar variables desde .env al entorno para que sudo -E las preserve
+if [ -f .env ]; then
+  log "Cargando variables desde .env al entorno (export)"
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+else
+  log "ADVERTENCIA: .env no encontrado en $(pwd); las variables no serán exportadas"
+fi
+
+if ! $SUDO_PREFIX $DOCKER_CMD stack deploy -c "$COMPOSE_FILE" "$MAIN_STACK" 2>&1 | tee -a "$LOG"; then
   log "ERROR: fallo al desplegar el stack"
   exit 1
 fi
