@@ -253,7 +253,7 @@ while [ $elapsed -le $MAX_API_WAIT ]; do
     API_OK=1
     break
   else 
-    log "Respuesta curl (intento ${elapsed}s): ${CURL_BODY}"
+    log "Respuesta curl (intento ${elapsed}s): ${CURL_ERR}"
   fi
   sleep 5
   elapsed=$((elapsed+5))
