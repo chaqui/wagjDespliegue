@@ -95,16 +95,19 @@ services:
   # ──────────────────────────────────────────────────────────
   auth-service:
     image: ghcr.io/chaqui/auth-service:latest
+    # Cargar variables desde el fichero .env en el mismo directorio
+    env_file:
+      - .env
     environment:
-      - DB_URL=${DB_URL:-jdbc:postgresql://host.docker.internal:5435/gestion_usuarios}
-      - DB_USERNAME=${DB_USERNAME:-usuarios}
-      - DB_PASSWORD=${DB_PASSWORD:-change_me}
-      - DB_SCHEMA=${DB_SCHEMA:-public}
-      - JWT_SECRET=${JWT_SECRET:-mi_jwt_secret}
+      - DB_URL
+      - DB_USERNAME
+      - DB_PASSWORD
+      - DB_SCHEMA
+      - JWT_SECRET
       - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
-      - SPRING_DATASOURCE_URL=${DB_URL}
-      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - SPRING_DATASOURCE_URL
+      - SPRING_DATASOURCE_USERNAME
+      - SPRING_DATASOURCE_PASSWORD
     volumes:
       - type: bind
         source: ./keys
