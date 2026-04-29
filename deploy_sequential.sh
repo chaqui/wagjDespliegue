@@ -245,9 +245,10 @@ while [ $elapsed -le $MAX_API_WAIT ]; do
     >/tmp/auth_probe 2>/tmp/auth_probe_err || true
   CURL_BODY=$(cat /tmp/auth_probe 2>/dev/null || true)
   CURL_ERR=$(cat /tmp/auth_probe_err 2>/dev/null || true)
-  log "Respuesta curl (intento ${elapsed}s): ${CURL_BODY}"
+
   [ -n "$CURL_ERR" ] && log "Stderr curl: ${CURL_ERR}"
   if [ -n "$CURL_BODY" ]; then
+    log "Respuesta curl (intento ${elapsed}s): ${CURL_BODY}"
     log "API de auth-service accesible."
     API_OK=1
     break
