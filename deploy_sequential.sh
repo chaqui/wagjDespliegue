@@ -240,12 +240,19 @@ API_OK=0
 MAX_API_WAIT=120
 elapsed=0
 while [ $elapsed -le $MAX_API_WAIT ]; do
-  if $SUDO_PREFIX $DOCKER_CMD run --rm --network public-net curlimages/curl:latest curl -sS --connect-timeout 5 http://auth-service:8082/api/services >/tmp/auth_probe 2>/tmp/auth_probe_err; then
-    log "API de auth-service accesible. Muestra de respuesta: $(head -c 400 /tmp/auth_probe | tr -d '\n')"
+  $SUDO_PREFIX $DOCKER_CMD run --rm --network public-net curlimages/curl:latest \
+    curl -sS --connect-timeout 5 http://auth-service:8082/api/services \
+    >/tmp/auth_probe 2>/tmp/auth_probe_err || true
+  CURL_BODY=$(cat /tmp/auth_probe 2>/dev/null || true)
+  CURL_ERR=$(cat /tmp/auth_probe_err 2>/dev/null || true)
+  log "Respuesta curl (intento ${elapsed}s): ${CURL_BODY}"
+  [ -n "$CURL_ERR" ] && log "Stderr curl: ${CURL_ERR}"
+  if [ -n "$CURL_BODY" ]; then
+    log "API de auth-service accesible."
     API_OK=1
     break
-  else
-    log "API de auth-service no lista aún (intento a ${elapsed}s)"
+  else 
+    log "Respuesta curl (intento ${elapsed}s): ${CURL_BODY}"
   fi
   sleep 5
   elapsed=$((elapsed+5))
