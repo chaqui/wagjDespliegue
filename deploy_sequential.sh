@@ -107,7 +107,9 @@ prepare_dirs() {
   done
   # Asegurar permisos mínimos de keys
   if [ -d "./keys" ]; then
-    chmod -R 750 ./keys || true
+    # Permitir que el proceso dentro del contenedor pueda escribir en ./keys
+    # (algunas imágenes de contenedor ejecutan con un UID distinto al host)
+    chmod -R 777 ./keys || true
   fi
 }
 
