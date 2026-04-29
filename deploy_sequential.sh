@@ -240,20 +240,16 @@ API_OK=0
 MAX_API_WAIT=120
 elapsed=0
 while [ $elapsed -le $MAX_API_WAIT ]; do
-  $SUDO_PREFIX $DOCKER_CMD run --rm --network ${MAIN_STACK}_public-net curlimages/curl:latest \
-    curl -sS --connect-timeout 5 http://auth-service:8082/api/services \
-    >/tmp/auth_probe 2>/tmp/auth_probe_err || true
-  CURL_BODY=$(cat /tmp/auth_probe 2>/dev/null || true)
+  HTTP_CODE=$($SUDO_PREFIX $DOCKER_CMD run --rm --network ${MAIN_STACK}_public-net curlimages/curl:latest \
+    curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 http://auth-service:8082/api/services \
+    2>/tmp/auth_probe_err || true)
   CURL_ERR=$(cat /tmp/auth_probe_err 2>/dev/null || true)
-
+  log "HTTP status curl (intento ${elapsed}s): '${HTTP_CODE}'"
   [ -n "$CURL_ERR" ] && log "Stderr curl: ${CURL_ERR}"
-  if [ -n "$CURL_BODY" ]; then
-    log "Respuesta curl (intento ${elapsed}s): ${CURL_BODY}"
-    log "API de auth-service accesible."
+  if echo "$HTTP_CODE" | grep -qE '^[0-9]+$' && [ "$HTTP_CODE" -ge 100 ]; then
+    log "API de auth-service accesible (HTTP ${HTTP_CODE})."
     API_OK=1
     break
-  else 
-    log "Respuesta curl (intento ${elapsed}s): ${CURL_ERR}"
   fi
   sleep 5
   elapsed=$((elapsed+5))
