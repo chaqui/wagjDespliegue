@@ -193,12 +193,18 @@ services:
   clinica-backend:
     image: ghcr.io/chaqui/backend-clinica:latest
     environment:
+      # Perfil Spring Boot (postgres activa la configuración PostgreSQL)
+      - SPRING_PROFILES_ACTIVE=postgres
+      # Base de datos PostgreSQL (RDS / externo)
       - DB_URL=${DB_URL}
-      - DB_USERNAME=${DB_USERNAME}
+      - DB_USER=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_SCHEMA=${DB_SCHEMA_CLINICA}
+      # Seguridad
       - JWT_SECRET=${JWT_SECRET}
+      # JVM tuning
       - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
+      # Integración interna
       - AUTH_SERVICE_URL=http://auth-service:8082
       - SERVICE_NAME=clinica-backend
       - SERVICE_PORT=8080
