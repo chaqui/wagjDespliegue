@@ -24,7 +24,7 @@ services:
 
   # ──────────────────────────────────────────────────────────
   # TRAEFIK - Proxy Inverso / API Gateway
-  # Dashboard: https://traefik.tu-clinica.com  (basicauth)
+  # Dashboard: https://clinica-ixquic.duckdns.org/traefik/dashboard/
   # ──────────────────────────────────────────────────────────
   traefik:
     image: traefik:v3.0
@@ -38,7 +38,7 @@ services:
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--certificatesresolvers.letsencrypt.acme.email=tu@email.com"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/certificates/acme.json"
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
       - "--log.level=INFO"
@@ -67,16 +67,19 @@ services:
       labels:
         - "traefik.enable=true"
         # Dashboard — generar hash: echo $(htpasswd -nb admin pass) | sed -e s/\\$/\\$\\$/g
-        - "traefik.http.routers.dashboard.rule=Host(`traefik.tu-clinica.com`)"
+        # Dashboard accesible en: https://clinica-ixquic.duckdns.org/traefik/dashboard/
+        - "traefik.http.routers.dashboard.rule=Host(`clinica-ixquic.duckdns.org`) && (PathPrefix(`/traefik/api`) || PathPrefix(`/traefik/dashboard`))"
         - "traefik.http.routers.dashboard.entrypoints=websecure"
         - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
         - "traefik.http.routers.dashboard.service=api@internal"
-        - "traefik.http.routers.dashboard.middlewares=auth-basic"
-        - "traefik.http.middlewares.auth-basic.basicauth.users=admin:$$apr1$$REEMPLAZA$$ESTE_HASH"
+        - "traefik.http.routers.dashboard.middlewares=auth-basic,strip-traefik"
+        - "traefik.http.middlewares.strip-traefik.stripprefix.prefixes=/traefik"
+        # Hash generado con: echo $(htpasswd -nb admin TuPassword) | sed -e 's/\$/\$\$/g'
+        - "traefik.http.middlewares.auth-basic.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}"
         # CORS reutilizable para todas las APIs
         - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
         - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=Content-Type,Authorization"
-        - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=https://app.tu-clinica.com"
+        - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=https://clinica-ixquic.duckdns.org"
         - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
         - "traefik.http.middlewares.cors.headers.addvaryheader=true"
         # Rate limiting global
@@ -87,8 +90,7 @@ services:
   # ──────────────────────────────────────────────────────────
   # AUTH SERVICE - Backend de gestión de usuarios
   # Imagen:   ghcr.io/chaqui/auth-service:latest
-  # Ruta:     https://api.tu-clinica.com/auth → :8082
-  # Réplicas: 3
+  # Ruta:     https://clinica-ixquic.duckdns.org/auth → :8082
   # ──────────────────────────────────────────────────────────
   auth-service:
     image: ghcr.io/chaqui/auth-service:latest
@@ -127,7 +129,7 @@ services:
           memory: 512M
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.auth.rule=Host(`api.tu-clinica.com`) && PathPrefix(`/auth`)"
+        - "traefik.http.routers.auth.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/auth`)"
         - "traefik.http.routers.auth.entrypoints=websecure"
         - "traefik.http.routers.auth.tls.certresolver=letsencrypt"
         - "traefik.http.routers.auth.middlewares=cors,rate-limit,strip-auth"
@@ -150,13 +152,12 @@ services:
   # ──────────────────────────────────────────────────────────
   # FRONTEND USUARIOS - UI de gestión de usuarios
   # Imagen:   ghcr.io/chaqui/frontend-usuarios:latest
-  # Ruta:     https://app.tu-clinica.com/usuarios → :80
-  # Réplicas: 2
+  # Ruta:     https://clinica-ixquic.duckdns.org/usuarios → :80
   # ──────────────────────────────────────────────────────────
   frontend-usuarios:
     image:  ghcr.io/chaqui/frontend-usuarios:latest
     environment:
-      - API_URL=https://${API_HOST:-api.tu-clinica.com}/auth
+      - API_URL=https://clinica-ixquic.duckdns.org/auth
     networks:
       - public-net
     deploy:
@@ -168,7 +169,7 @@ services:
           memory: 256M
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.frontend-usuarios.rule=Host(`app.tu-clinica.com`) && PathPrefix(`/usuarios`)"
+        - "traefik.http.routers.frontend-usuarios.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/usuarios`)"
         - "traefik.http.routers.frontend-usuarios.entrypoints=websecure"
         - "traefik.http.routers.frontend-usuarios.tls.certresolver=letsencrypt"
         - "traefik.http.routers.frontend-usuarios.middlewares=rate-limit"
@@ -178,8 +179,7 @@ services:
   # ──────────────────────────────────────────────────────────
   # CLÍNICA BACKEND - Backend core
   # Imagen:   ghcr.io/chaqui/backend-clinica:latest
-  # Ruta:     https://api.tu-clinica.com/api → :8080
-  # Réplicas: 2
+  # Ruta:     https://clinica-ixquic.duckdns.org/api → :8080
   # ──────────────────────────────────────────────────────────
   clinica-backend:
     image: ghcr.io/chaqui/backend-clinica:latest
@@ -230,7 +230,7 @@ services:
           memory: 512M
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.clinica-api.rule=Host(`api.tu-clinica.com`) && PathPrefix(`/api`)"
+        - "traefik.http.routers.clinica-api.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/api`)"
         - "traefik.http.routers.clinica-api.entrypoints=websecure"
         - "traefik.http.routers.clinica-api.tls.certresolver=letsencrypt"
         - "traefik.http.routers.clinica-api.middlewares=cors,rate-limit"
@@ -242,20 +242,19 @@ services:
   # ──────────────────────────────────────────────────────────
   # FRONTEND CLÍNICA - Frontend principal (core)
   # Imagen:   ghcr.io/chaqui/frontend-clinica:latest
-  # Ruta:     https://app.tu-clinica.com/ (raíz) → :3000
-  # Réplicas: 3
+  # Ruta:     https://clinica-ixquic.duckdns.org/ → :3000
   # ──────────────────────────────────────────────────────────
   frontend-clinica:
     image:  ghcr.io/chaqui/frontend-clinica:latest
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - API_URL=https://${API_HOST:-api.tu-clinica.com}
-      - API_AUTH_URL=https://${API_HOST:-api.tu-clinica.com}/auth
-      - API_PACIENTES_URL=https://${API_HOST:-api.tu-clinica.com}/api/pacientes
-      - API_CONSULTAS_URL=https://${API_HOST:-api.tu-clinica.com}/api/consultas
-      - API_RECETAS_URL=https://${API_HOST:-api.tu-clinica.com}/api/recetas
-      - WEBSOCKET_URL=wss://${API_HOST:-api.tu-clinica.com}/ws
+      - API_URL=https://clinica-ixquic.duckdns.org
+      - API_AUTH_URL=https://clinica-ixquic.duckdns.org/auth
+      - API_PACIENTES_URL=https://clinica-ixquic.duckdns.org/api/pacientes
+      - API_CONSULTAS_URL=https://clinica-ixquic.duckdns.org/api/consultas
+      - API_RECETAS_URL=https://clinica-ixquic.duckdns.org/api/recetas
+      - WEBSOCKET_URL=wss://clinica-ixquic.duckdns.org/ws
       - LOG_LEVEL=info
       - LOG_FORMAT=json
       - ENABLE_SSR=true
@@ -274,24 +273,29 @@ services:
           memory: 512M
       labels:
         - "traefik.enable=true"
-        # priority=1 (más baja): captura solo si ninguna ruta más específica coincide
-        - "traefik.http.routers.frontend-core.rule=Host(`app.tu-clinica.com`)"
+        # Router de redirección: captura / con máxima prioridad y redirige a /usuarios
+        - "traefik.http.routers.root-redirect.rule=Host(`clinica-ixquic.duckdns.org`) && Path(`/`)"
+        - "traefik.http.routers.root-redirect.entrypoints=websecure"
+        - "traefik.http.routers.root-redirect.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.root-redirect.middlewares=redirect-to-usuarios"
+        - "traefik.http.routers.root-redirect.priority=10"
+        - "traefik.http.routers.root-redirect.service=noop@internal"
+        - "traefik.http.middlewares.redirect-to-usuarios.redirectregex.regex=^.*$$"
+        - "traefik.http.middlewares.redirect-to-usuarios.redirectregex.replacement=https://clinica-ixquic.duckdns.org/usuarios"
+        - "traefik.http.middlewares.redirect-to-usuarios.redirectregex.permanent=false"
+        # Router principal: sirve el frontend para todas las demás rutas
+        - "traefik.http.routers.frontend-core.rule=Host(`clinica-ixquic.duckdns.org`)"
         - "traefik.http.routers.frontend-core.entrypoints=websecure"
         - "traefik.http.routers.frontend-core.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.frontend-core.middlewares=rate-limit,redirect-root"
+        - "traefik.http.routers.frontend-core.middlewares=rate-limit"
         - "traefik.http.routers.frontend-core.priority=1"
         - "traefik.http.services.frontend-core.loadbalancer.server.port=3000"
-        # Redirige https://app.tu-clinica.com/ → https://app.tu-clinica.com/usuarios
-        - "traefik.http.middlewares.redirect-root.redirectregex.regex=^https://app\\.tu-clinica\\.com/?$$"
-        - "traefik.http.middlewares.redirect-root.redirectregex.replacement=https://app.tu-clinica.com/usuarios"
-        - "traefik.http.middlewares.redirect-root.redirectregex.permanent=true"
     logging: *default-logging
 
   # ──────────────────────────────────────────────────────────
   # CATÁLOGOS BACKEND
   # Imagen:   ghcr.io/chaqui/catalogos:main
-  # Ruta:     https://api.tu-clinica.com/catalogos → :3001
-  # Réplicas: 2
+  # Ruta:     https://clinica-ixquic.duckdns.org/catalogos → :3001
   # ──────────────────────────────────────────────────────────
   catalogos:
     image: ghcr.io/chaqui/catalogos:main
@@ -321,7 +325,7 @@ services:
           memory: 256M
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.catalogos.rule=Host(`api.tu-clinica.com`) && PathPrefix(`/catalogos`)"
+        - "traefik.http.routers.catalogos.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/catalogos`)"
         - "traefik.http.routers.catalogos.entrypoints=websecure"
         - "traefik.http.routers.catalogos.tls.certresolver=letsencrypt"
         - "traefik.http.routers.catalogos.middlewares=cors,rate-limit,strip-catalogos"
