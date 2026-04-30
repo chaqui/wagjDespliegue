@@ -278,9 +278,13 @@ services:
         - "traefik.http.routers.frontend-core.rule=Host(`app.tu-clinica.com`)"
         - "traefik.http.routers.frontend-core.entrypoints=websecure"
         - "traefik.http.routers.frontend-core.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.frontend-core.middlewares=rate-limit"
+        - "traefik.http.routers.frontend-core.middlewares=rate-limit,redirect-root"
         - "traefik.http.routers.frontend-core.priority=1"
         - "traefik.http.services.frontend-core.loadbalancer.server.port=3000"
+        # Redirige https://app.tu-clinica.com/ → https://app.tu-clinica.com/usuarios
+        - "traefik.http.middlewares.redirect-root.redirectregex.regex=^https://app\\.tu-clinica\\.com/?$$"
+        - "traefik.http.middlewares.redirect-root.redirectregex.replacement=https://app.tu-clinica.com/usuarios"
+        - "traefik.http.middlewares.redirect-root.redirectregex.permanent=true"
     logging: *default-logging
 
   # ──────────────────────────────────────────────────────────
