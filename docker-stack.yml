@@ -64,9 +64,6 @@ services:
         limits:
           cpus: '0.5'
           memory: 256M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
       labels:
         - "traefik.enable=true"
         # Dashboard — generar hash: echo $(htpasswd -nb admin pass) | sed -e s/\\$/\\$\\$/g
@@ -128,9 +125,6 @@ services:
         limits:
           cpus: '1'
           memory: 512M
-        reservations:
-          cpus: '0.5'
-          memory: 256M
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.auth.rule=Host(`api.tu-clinica.com`) && PathPrefix(`/auth`)"
@@ -172,9 +166,6 @@ services:
         limits:
           cpus: '0.5'
           memory: 256M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.frontend-usuarios.rule=Host(`app.tu-clinica.com`) && PathPrefix(`/usuarios`)"
@@ -237,9 +228,6 @@ services:
         limits:
           cpus: '1'
           memory: 512M
-        reservations:
-          cpus: '0.5'
-          memory: 256M
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.clinica-api.rule=Host(`api.tu-clinica.com`) && PathPrefix(`/api`)"
@@ -284,9 +272,6 @@ services:
         limits:
           cpus: '1'
           memory: 512M
-        reservations:
-          cpus: '0.5'
-          memory: 256M
       labels:
         - "traefik.enable=true"
         # priority=1 (más baja): captura solo si ninguna ruta más específica coincide
@@ -330,9 +315,6 @@ services:
         limits:
           cpus: '0.5'
           memory: 256M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.catalogos.rule=Host(`api.tu-clinica.com`) && PathPrefix(`/catalogos`)"
