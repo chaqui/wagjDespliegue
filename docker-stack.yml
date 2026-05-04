@@ -174,10 +174,11 @@ services:
           memory: 256M
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.frontend-usuarios.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/usuarios`)"
+        - "traefik.http.routers.frontend-usuarios.rule=Host(`clinica-ixquic.duckdns.org`) && (PathPrefix(`/usuarios`) || Path(`/`))"
         - "traefik.http.routers.frontend-usuarios.entrypoints=websecure"
         - "traefik.http.routers.frontend-usuarios.tls.certresolver=letsencrypt"
         - "traefik.http.routers.frontend-usuarios.middlewares=rate-limit"
+        - "traefik.http.routers.frontend-usuarios.priority=10"
         - "traefik.http.services.frontend-usuarios.loadbalancer.server.port=80"
     logging: *default-logging
 
@@ -278,16 +279,6 @@ services:
           memory: 512M
       labels:
         - "traefik.enable=true"
-        # Router de redirección: captura / con máxima prioridad y redirige a /usuarios
-        - "traefik.http.routers.root-redirect.rule=Host(`clinica-ixquic.duckdns.org`) && Path(`/`)"
-        - "traefik.http.routers.root-redirect.entrypoints=websecure"
-        - "traefik.http.routers.root-redirect.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.root-redirect.middlewares=redirect-to-usuarios"
-        - "traefik.http.routers.root-redirect.priority=10"
-        - "traefik.http.routers.root-redirect.service=noop@internal"
-        - "traefik.http.middlewares.redirect-to-usuarios.redirectregex.regex=^.*$$"
-        - "traefik.http.middlewares.redirect-to-usuarios.redirectregex.replacement=https://clinica-ixquic.duckdns.org/usuarios"
-        - "traefik.http.middlewares.redirect-to-usuarios.redirectregex.permanent=false"
         # Router principal: sirve el frontend para todas las demás rutas
         - "traefik.http.routers.frontend-core.rule=Host(`clinica-ixquic.duckdns.org`)"
         - "traefik.http.routers.frontend-core.entrypoints=websecure"
