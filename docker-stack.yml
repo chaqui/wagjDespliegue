@@ -27,7 +27,7 @@ services:
   # Dashboard: https://clinica-ixquic.duckdns.org/traefik/dashboard/
   # ──────────────────────────────────────────────────────────
   traefik:
-    image: traefik:v3.0
+    image: traefik:v3.3
     command:
       - "--api.dashboard=true"
       - "--api.insecure=false"
@@ -43,8 +43,6 @@ services:
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
       - "--log.level=INFO"
       - "--accesslog=true"
-    environment:
-      - DOCKER_API_VERSION=1.40
     ports:
       - target: 80
         published: 80
