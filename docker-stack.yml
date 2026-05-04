@@ -43,6 +43,8 @@ services:
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
       - "--log.level=INFO"
       - "--accesslog=true"
+    environment:
+      - DOCKER_API_VERSION=1.40
     ports:
       - target: 80
         published: 80
