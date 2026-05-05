@@ -115,6 +115,23 @@ prepare_dirs() {
 
 prepare_dirs
 
+# Inicializar acme.json en el volumen de Traefik con permisos 600
+# (Traefik requiere que exista y tenga chmod 600; si no, ignora ACME silenciosamente)
+init_acme_json() {
+  ACME_VOL="${MAIN_STACK}_traefik-certificates"
+  log "Inicializando acme.json en volumen $ACME_VOL con permisos 600"
+  $SUDO_PREFIX $DOCKER_CMD run --rm \
+    -v "${ACME_VOL}:/certs" \
+    alpine sh -c "
+      touch /certs/acme.json
+      chmod 600 /certs/acme.json
+      echo 'acme.json listo'
+      ls -la /certs/
+    " 2>&1 | tee -a "$LOG" || log "ADVERTENCIA: no se pudo inicializar acme.json"
+}
+
+init_acme_json
+
 # deploy full stack (services will start)
 log "Iniciando despliegue del stack $MAIN_STACK"
 # Cargar variables desde .env al entorno para que sudo -E las preserve
