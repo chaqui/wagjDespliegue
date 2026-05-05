@@ -12,6 +12,19 @@ check_cmd() { command -v "$1" >/dev/null 2>&1 || { log "ERROR: required command 
 
 check_cmd docker
 
+# Detectar versión de API de Docker del servidor e inyectarla en el stack
+# Esto evita que DOCKER_API_VERSION fija cause incompatibilidades con el proveedor Docker de Traefik
+detect_docker_api_version() {
+  DETECTED_API=$($SUDO_PREFIX $DOCKER_CMD version --format '{{.Server.APIVersion}}' 2>/dev/null || true)
+  if [ -n "$DETECTED_API" ]; then
+    export DOCKER_API_VERSION="$DETECTED_API"
+    log "Docker API versión detectada: $DOCKER_API_VERSION"
+  else
+    log "ADVERTENCIA: no se pudo detectar la versión de API de Docker; DOCKER_API_VERSION no será enviada a Traefik"
+    unset DOCKER_API_VERSION 2>/dev/null || true
+  fi
+}
+
 # Determinar si se debe usar sudo para Docker (permiso sobre /var/run/docker.sock)
 if docker info >/dev/null 2>&1; then
   DOCKER_CMD="docker"
@@ -22,6 +35,8 @@ else
   SUDO_PREFIX="sudo -E"
   log "Nota: usando sudo -E para comandos Docker (permiso sobre /var/run/docker.sock). Se preservarán variables de entorno." 
 fi
+
+detect_docker_api_version
 
 log "Iniciando despliegue secuencial usando $COMPOSE_FILE"
 # Verificar si el nodo es parte de un Swarm y, si no lo es, intentar inicializarlo
