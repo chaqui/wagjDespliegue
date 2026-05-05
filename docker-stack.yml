@@ -87,6 +87,7 @@ services:
         - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=https://clinica-ixquic.duckdns.org"
         - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
         - "traefik.http.middlewares.cors.headers.addvaryheader=true"
+        - "traefik.http.middlewares.cors.headers.accesscontrolallowcredentials=true"
         # Rate limiting global
         - "traefik.http.middlewares.rate-limit.ratelimit.average=100"
         - "traefik.http.middlewares.rate-limit.ratelimit.burst=50"
