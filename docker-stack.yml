@@ -180,6 +180,7 @@ services:
         - "traefik.http.routers.frontend-usuarios.middlewares=rate-limit"
         - "traefik.http.routers.frontend-usuarios.tls=true"
         - "traefik.http.routers.frontend-usuarios.priority=10"
+        - "traefik.http.middlewares.usuarios-strip.stripprefix.prefixes=/usuarios"
         - "traefik.http.services.frontend-usuarios.loadbalancer.server.port=80"
     logging: *default-logging
 
