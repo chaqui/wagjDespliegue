@@ -144,8 +144,6 @@ services:
         - "traefik.http.services.auth.loadbalancer.sticky.cookie=true"
         - "traefik.http.services.auth.loadbalancer.sticky.cookie.name=auth_session"
         - "traefik.http.services.auth.loadbalancer.sticky.cookie.secure=true"
-        - "traefik.http.services.auth.loadbalancer.healthcheck.path=/actuator/health"
-        - "traefik.http.services.auth.loadbalancer.healthcheck.interval=30s"
     healthcheck:
       test: ["CMD-SHELL", "test -r /app/keys/public_key.pem && test -s /app/keys/public_key.pem || exit 1"]
       interval: 30s
@@ -243,8 +241,6 @@ services:
         - "traefik.http.routers.clinica-api.tls.certresolver=letsencrypt"
         - "traefik.http.routers.clinica-api.middlewares=cors,rate-limit"
         - "traefik.http.services.clinica-api.loadbalancer.server.port=8080"
-        - "traefik.http.services.clinica-api.loadbalancer.healthcheck.path=/api/actuator/health"
-        - "traefik.http.services.clinica-api.loadbalancer.healthcheck.interval=30s"
     logging: *default-logging
 
   # ──────────────────────────────────────────────────────────
