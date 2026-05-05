@@ -220,8 +220,14 @@ validate_required_vars
 # Pre-crear la red overlay antes del stack deploy para evitar race condition
 NETWORK_NAME="${MAIN_STACK}_public-net"
 log "Recreando red overlay ${NETWORK_NAME} (limpieza preventiva)"
-$SUDO_PREFIX $DOCKER_CMD network rm "${NETWORK_NAME}" 2>/dev/null || true
-sleep 1
+$SUDO_PREFIX $DOCKER_CMD network rm "${NETWORK_NAME}" 2>&1 | tee -a "$LOG" || true
+# Esperar hasta que la red desaparezca realmente (máx 15s)
+for _i in $(seq 1 15); do
+  if ! $SUDO_PREFIX $DOCKER_CMD network ls --format '{{.Name}}' | grep -q "^${NETWORK_NAME}$"; then
+    break
+  fi
+  sleep 1
+done
 $SUDO_PREFIX $DOCKER_CMD network create --driver overlay --attachable "${NETWORK_NAME}" 2>&1 | tee -a "$LOG"
 
 if ! $SUDO_PREFIX $DOCKER_CMD stack deploy -c "$COMPOSE_FILE" "$MAIN_STACK" --with-registry-auth 2>&1 | tee -a "$LOG"; then
