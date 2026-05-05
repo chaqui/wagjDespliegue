@@ -81,13 +81,6 @@ services:
         - "traefik.http.middlewares.auth-basic.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}"
         # Puerto explícito para evitar el error "port is missing" al auto-descubrirse
         - "traefik.http.services.traefik.loadbalancer.server.port=80"
-        # CORS reutilizable para todas las APIs
-        - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
-        - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=Content-Type,Authorization"
-        - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=https://clinica-ixquic.duckdns.org"
-        - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
-        - "traefik.http.middlewares.cors.headers.addvaryheader=true"
-        - "traefik.http.middlewares.cors.headers.accesscontrolallowcredentials=true"
         # Rate limiting global
         - "traefik.http.middlewares.rate-limit.ratelimit.average=100"
         - "traefik.http.middlewares.rate-limit.ratelimit.burst=50"
@@ -138,7 +131,7 @@ services:
         - "traefik.http.routers.auth.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/usuarios-api`)"
         - "traefik.http.routers.auth.entrypoints=websecure"
         - "traefik.http.routers.auth.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.auth.middlewares=cors,rate-limit,strip-auth"
+        - "traefik.http.routers.auth.middlewares=rate-limit,strip-auth"
         - "traefik.http.middlewares.strip-auth.stripprefix.prefixes=/usuarios-api"
         - "traefik.http.services.auth.loadbalancer.server.port=8082"
         # Sticky sessions: misma réplica para la misma sesión
@@ -240,7 +233,7 @@ services:
         - "traefik.http.routers.clinica-api.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/api`)"
         - "traefik.http.routers.clinica-api.entrypoints=websecure"
         - "traefik.http.routers.clinica-api.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.clinica-api.middlewares=cors,rate-limit"
+        - "traefik.http.routers.clinica-api.middlewares=rate-limit"
         - "traefik.http.services.clinica-api.loadbalancer.server.port=8080"
     logging: *default-logging
 
@@ -323,7 +316,7 @@ services:
         - "traefik.http.routers.catalogos.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/catalogos`)"
         - "traefik.http.routers.catalogos.entrypoints=websecure"
         - "traefik.http.routers.catalogos.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.catalogos.middlewares=cors,rate-limit,strip-catalogos"
+        - "traefik.http.routers.catalogos.middlewares=rate-limit,strip-catalogos"
         - "traefik.http.middlewares.strip-catalogos.stripprefix.prefixes=/catalogos"
         - "traefik.http.services.catalogos.loadbalancer.server.port=3001"
     logging: *default-logging
