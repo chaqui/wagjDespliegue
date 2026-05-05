@@ -281,7 +281,7 @@ services:
       labels:
         - "traefik.enable=true"
         # Router principal: sirve el frontend para todas las demás rutas
-        - "traefik.http.routers.frontend-core.rule=Host(`clinica-ixquic.duckdns.org`)"
+        - "traefik.http.routers.frontend-core.rule=Host(`clinica-ixquic.duckdns.org`) && (PathPrefix(`/clinica`))"
         - "traefik.http.routers.frontend-core.entrypoints=websecure"
         - "traefik.http.routers.frontend-core.tls.certresolver=letsencrypt"
         - "traefik.http.routers.frontend-core.middlewares=rate-limit"
