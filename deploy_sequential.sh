@@ -217,6 +217,15 @@ fi
 generate_traefik_auth
 validate_required_vars
 
+# Pre-crear la red overlay antes del stack deploy para evitar race condition
+NETWORK_NAME="${MAIN_STACK}_public-net"
+if ! $SUDO_PREFIX $DOCKER_CMD network ls --format '{{.Name}}' | grep -q "^${NETWORK_NAME}$"; then
+  log "Creando red overlay ${NETWORK_NAME}"
+  $SUDO_PREFIX $DOCKER_CMD network create --driver overlay --attachable "${NETWORK_NAME}" | tee -a "$LOG"
+else
+  log "Red ${NETWORK_NAME} ya existe"
+fi
+
 if ! $SUDO_PREFIX $DOCKER_CMD stack deploy -c "$COMPOSE_FILE" "$MAIN_STACK" --with-registry-auth 2>&1 | tee -a "$LOG"; then
   log "ERROR: fallo al desplegar el stack"
   exit 1

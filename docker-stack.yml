@@ -344,8 +344,8 @@ services:
 # ============================================================
 networks:
   public-net:
-    driver: overlay
-    attachable: true
+    external: true
+    name: sistema_public-net
 
 # ============================================================
 # VOLÚMENES (solo de aplicación, sin BDs)
