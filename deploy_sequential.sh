@@ -128,7 +128,7 @@ else
   log "ADVERTENCIA: .env no encontrado en $(pwd); las variables no serán exportadas"
 fi
 
-if ! $SUDO_PREFIX $DOCKER_CMD stack deploy -c "$COMPOSE_FILE" "$MAIN_STACK" 2>&1 | tee -a "$LOG"; then
+if ! $SUDO_PREFIX $DOCKER_CMD stack deploy -c "$COMPOSE_FILE" "$MAIN_STACK" --with-registry-auth 2>&1 | tee -a "$LOG"; then
   log "ERROR: fallo al desplegar el stack"
   exit 1
 fi
@@ -273,4 +273,27 @@ while read -r line; do
   fi
 done < "$MAPPING_FILE"
 
-log "Despliegue secuencial finalizado con éxito"
+# Esperar que todos los servicios restaurados estén running
+log "Esperando que todos los servicios estén en ejecución (máx 120s)..."
+MAX_WAIT_UP=120
+elapsed=0
+all_up=0
+while [ $elapsed -le $MAX_WAIT_UP ]; do
+  not_ready=$($SUDO_PREFIX $DOCKER_CMD service ls \
+    --filter label=com.docker.stack.namespace=$MAIN_STACK \
+    --format '{{.Name}} {{.Replicas}}' 2>/dev/null | \
+    awk -F'[ /]' '{if($2!=0 && $2!=$3) print $1}' || true)
+  if [ -z "$not_ready" ]; then
+    all_up=1
+    break
+  fi
+  log "Servicios pendientes: $not_ready (${elapsed}s)"
+  sleep 5
+  elapsed=$((elapsed+5))
+done
+if [ $all_up -ne 1 ]; then
+  log "ADVERTENCIA: algunos servicios no alcanzaron el estado deseado en ${MAX_WAIT_UP}s:"
+  $SUDO_PREFIX $DOCKER_CMD service ls --filter label=com.docker.stack.namespace=$MAIN_STACK | tee -a "$LOG"
+else
+  log "Todos los servicios están en ejecución."
+fi
