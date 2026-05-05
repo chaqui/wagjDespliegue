@@ -30,7 +30,7 @@ services:
     image: traefik:v2.11
     command:
       - "--api.dashboard=true"
-      - "--api.insecure=true"
+      - "--api.insecure=false"
       - "--providers.docker=true"
       - "--providers.docker.swarmMode=true"
       - "--providers.docker.exposedbydefault=false"
@@ -42,7 +42,7 @@ services:
       - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/certificates/acme.json"
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-      - "--log.level=DEBUG"
+      - "--log.level=INFO"
       - "--accesslog=true"
     environment:
       - DOCKER_API_VERSION=${DOCKER_API_VERSION}
