@@ -100,6 +100,7 @@ services:
       - DB_SCHEMA=${DB_SCHEMA}
       - JWT_SECRET=${JWT_SECRET}
       - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
+      - SERVER_FORWARD_HEADERS_STRATEGY=FRAMEWORK
     volumes:
       - type: bind
         source: ./keys
