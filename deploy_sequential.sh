@@ -12,6 +12,60 @@ check_cmd() { command -v "$1" >/dev/null 2>&1 || { log "ERROR: required command 
 
 check_cmd docker
 
+# Generar TRAEFIK_DASHBOARD_AUTH automáticamente desde TRAEFIK_USER y TRAEFIK_PASSWORD
+# si TRAEFIK_DASHBOARD_AUTH no está definida en el .env
+generate_traefik_auth() {
+  if [ -z "${TRAEFIK_DASHBOARD_AUTH:-}" ]; then
+    if [ -z "${TRAEFIK_USER:-}" ] || [ -z "${TRAEFIK_PASSWORD:-}" ]; then
+      log "ERROR: TRAEFIK_DASHBOARD_AUTH no está definida y faltan TRAEFIK_USER o TRAEFIK_PASSWORD para generarla."
+      log "Agrega al .env:  TRAEFIK_USER=admin  y  TRAEFIK_PASSWORD=TuPassword"
+      exit 1
+    fi
+    # Requiere htpasswd (apache2-utils) o openssl
+    if command -v htpasswd >/dev/null 2>&1; then
+      HASH=$(htpasswd -nb "${TRAEFIK_USER}" "${TRAEFIK_PASSWORD}" | sed -e 's/\$/\$\$/g')
+    elif command -v openssl >/dev/null 2>&1; then
+      HASHED=$(openssl passwd -apr1 "${TRAEFIK_PASSWORD}")
+      HASH="${TRAEFIK_USER}:$(echo "$HASHED" | sed -e 's/\$/\$\$/g')"
+    else
+      log "ERROR: se necesita 'htpasswd' (apache2-utils) u 'openssl' para generar TRAEFIK_DASHBOARD_AUTH."
+      log "Instala con: sudo apt-get install -y apache2-utils"
+      exit 1
+    fi
+    export TRAEFIK_DASHBOARD_AUTH="$HASH"
+    log "TRAEFIK_DASHBOARD_AUTH generado para usuario '${TRAEFIK_USER}'"
+  else
+    log "TRAEFIK_DASHBOARD_AUTH cargado desde .env"
+  fi
+}
+
+# Validar que las variables críticas estén definidas y no vacías
+validate_required_vars() {
+  REQUIRED_VARS=(
+    "ACME_EMAIL"
+    "TRAEFIK_DASHBOARD_AUTH"
+    "DB_URL"
+    "DB_USERNAME"
+    "DB_PASSWORD"
+    "JWT_SECRET"
+  )
+  MISSING=()
+  for var in "${REQUIRED_VARS[@]}"; do
+    val="${!var:-}"
+    if [ -z "$val" ]; then
+      MISSING+=("$var")
+    fi
+  done
+  if [ ${#MISSING[@]} -gt 0 ]; then
+    log "ERROR: las siguientes variables requeridas están vacías o no definidas en .env:"
+    for m in "${MISSING[@]}"; do
+      log "  - $m"
+    done
+    exit 1
+  fi
+  log "Variables requeridas validadas correctamente."
+}
+
 # Detectar versión de API de Docker del servidor e inyectarla en el stack
 # Esto evita que DOCKER_API_VERSION fija cause incompatibilidades con el proveedor Docker de Traefik
 detect_docker_api_version() {
@@ -159,6 +213,9 @@ if [ -f .env ]; then
 else
   log "ADVERTENCIA: .env no encontrado en $(pwd); las variables no serán exportadas"
 fi
+
+generate_traefik_auth
+validate_required_vars
 
 if ! $SUDO_PREFIX $DOCKER_CMD stack deploy -c "$COMPOSE_FILE" "$MAIN_STACK" --with-registry-auth 2>&1 | tee -a "$LOG"; then
   log "ERROR: fallo al desplegar el stack"
