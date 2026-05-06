@@ -160,7 +160,7 @@ services:
   frontend-usuarios:
     image:  ghcr.io/chaqui/frontend-usuarios:latest
     environment:
-      - API_URL=https://clinica-ixquic.duckdns.org/usuarios-api
+      - API_URL=https://clinica-ixquic.duckdns.org/usuarios-api/api
     networks:
       - public-net
     deploy:
