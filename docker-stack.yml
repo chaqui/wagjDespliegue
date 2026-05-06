@@ -257,7 +257,7 @@ services:
       - APP_BASE_HREF=/clinica/
       # URLs públicas para el browser (client-side)
       - API_URL=https://clinica-ixquic.duckdns.org
-      - API_AUTH_URL=https://clinica-ixquic.duckdns.org/usuarios-api
+      - API_AUTH_URL=https://clinica-ixquic.duckdns.org/usuarios
       - API_PACIENTES_URL=https://clinica-ixquic.duckdns.org/api/pacientes
       - API_CONSULTAS_URL=https://clinica-ixquic.duckdns.org/api/consultas
       - API_RECETAS_URL=https://clinica-ixquic.duckdns.org/api/recetas
