@@ -262,7 +262,7 @@ services:
       - WEBSOCKET_URL=wss://clinica-ixquic.duckdns.org/ws
       - LOG_LEVEL=info
       - LOG_FORMAT=json
-      - ENABLE_SSR=true
+      - ENABLE_SSR=false
       - CACHE_TTL=3600
     volumes:
       - clinica-frontend-data:/app/data
