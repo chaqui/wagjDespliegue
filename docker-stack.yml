@@ -255,16 +255,21 @@ services:
       - PORT=3000
       - ORIGIN=https://clinica-ixquic.duckdns.org
       - APP_BASE_HREF=/clinica/
+      # URLs públicas para el browser (client-side)
       - API_URL=https://clinica-ixquic.duckdns.org
       - API_AUTH_URL=https://clinica-ixquic.duckdns.org/usuarios-api
       - API_PACIENTES_URL=https://clinica-ixquic.duckdns.org/api/pacientes
       - API_CONSULTAS_URL=https://clinica-ixquic.duckdns.org/api/consultas
       - API_RECETAS_URL=https://clinica-ixquic.duckdns.org/api/recetas
       - WEBSOCKET_URL=wss://clinica-ixquic.duckdns.org/ws
+      # URLs internas para SSR (evitan el bloqueo SSRF de Angular 19+)
+      - SSR_API_URL=http://clinica-backend:8080
+      - SSR_API_AUTH_URL=http://auth-service:8082
       - LOG_LEVEL=info
       - LOG_FORMAT=json
       - ENABLE_SSR=false
       - CACHE_TTL=3600
+      - SSR_USE_INTERNAL_URLS=true
     volumes:
       - clinica-frontend-data:/app/data
       - /etc/timezone:/etc/timezone:ro
