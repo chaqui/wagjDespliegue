@@ -253,8 +253,9 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - APP_BASE_HREF=/clinica/
       - API_URL=https://clinica-ixquic.duckdns.org
-      - API_AUTH_URL=https://clinica-ixquic.duckdns.org/auth
+      - API_AUTH_URL=https://clinica-ixquic.duckdns.org/usuarios-api
       - API_PACIENTES_URL=https://clinica-ixquic.duckdns.org/api/pacientes
       - API_CONSULTAS_URL=https://clinica-ixquic.duckdns.org/api/consultas
       - API_RECETAS_URL=https://clinica-ixquic.duckdns.org/api/recetas
@@ -277,12 +278,13 @@ services:
           memory: 512M
       labels:
         - "traefik.enable=true"
-        # Router principal: sirve el frontend para todas las demás rutas
+        # Router principal: sirve el frontend bajo /clinica, stripping el prefijo antes de pasar al SSR
         - "traefik.http.routers.frontend-core.rule=Host(`clinica-ixquic.duckdns.org`) && (PathPrefix(`/clinica`))"
         - "traefik.http.routers.frontend-core.entrypoints=websecure"
         - "traefik.http.routers.frontend-core.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.frontend-core.middlewares=rate-limit"
+        - "traefik.http.routers.frontend-core.middlewares=rate-limit,strip-clinica"
         - "traefik.http.routers.frontend-core.priority=1"
+        - "traefik.http.middlewares.strip-clinica.stripprefix.prefixes=/clinica"
         - "traefik.http.services.frontend-core.loadbalancer.server.port=3000"
     logging: *default-logging
 
