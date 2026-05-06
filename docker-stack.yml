@@ -134,6 +134,8 @@ services:
         - "traefik.http.routers.auth.tls.certresolver=letsencrypt"
         - "traefik.http.routers.auth.middlewares=rate-limit,strip-auth"
         - "traefik.http.middlewares.strip-auth.stripprefix.prefixes=/usuarios-api"
+        - "traefik.http.middlewares.auth-rewrite.replacepathregex.regex=^/usuarios-api/(.*)"
+        - "traefik.http.middlewares.auth-rewrite.replacepathregex.replacement=/api/$${1}"
         - "traefik.http.services.auth.loadbalancer.server.port=8082"
         # Sticky sessions: misma réplica para la misma sesión
         - "traefik.http.services.auth.loadbalancer.sticky.cookie=true"
