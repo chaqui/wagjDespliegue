@@ -258,10 +258,8 @@ services:
       # URLs públicas para el browser (client-side)
       - API_URL=https://clinica-ixquic.duckdns.org
       - API_AUTH_URL=https://clinica-ixquic.duckdns.org/usuarios
-      - API_PACIENTES_URL=https://clinica-ixquic.duckdns.org/api/pacientes
-      - API_CONSULTAS_URL=https://clinica-ixquic.duckdns.org/api/consultas
-      - API_RECETAS_URL=https://clinica-ixquic.duckdns.org/api/recetas
-      - WEBSOCKET_URL=wss://clinica-ixquic.duckdns.org/ws
+      - AUTH_LOGIN=https://clinica-ixquic.duckdns.org/usuarios/login
+      - WS_URL=https://clinica-ixquic.duckdns.org/api/ws-clinica/websocket
       # URLs internas para SSR (evitan el bloqueo SSRF de Angular 19+)
       - SSR_API_URL=http://clinica-backend:8080
       - SSR_API_AUTH_URL=http://auth-service:8082
@@ -270,6 +268,7 @@ services:
       - ENABLE_SSR=false
       - CACHE_TTL=3600
       - SSR_USE_INTERNAL_URLS=true
+
     volumes:
       - clinica-frontend-data:/app/data
       - /etc/timezone:/etc/timezone:ro
