@@ -247,12 +247,24 @@ services:
           memory: 512M
       labels:
         - "traefik.enable=true"
+        # ── Router REST API ──────────────────────────────────────
         - "traefik.http.routers.clinica-api.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/clinica-api`)"
         - "traefik.http.routers.clinica-api.entrypoints=websecure"
         - "traefik.http.routers.clinica-api.tls.certresolver=letsencrypt"
         - "traefik.http.routers.clinica-api.middlewares=rate-limit,strip-clinica-api"
+        - "traefik.http.routers.clinica-api.priority=1"
+        - "traefik.http.routers.clinica-api.service=clinica-api"
+        # ── Router WebSocket / SockJS (prioridad mayor, sin rate-limit) ──
+        - "traefik.http.routers.clinica-ws.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/clinica-api/ws-clinica`)"
+        - "traefik.http.routers.clinica-ws.entrypoints=websecure"
+        - "traefik.http.routers.clinica-ws.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.clinica-ws.middlewares=strip-clinica-api"
+        - "traefik.http.routers.clinica-ws.priority=10"
+        - "traefik.http.routers.clinica-ws.service=clinica-api"
+        # ── Middleware path rewrite (compartido) ─────────────────
         - "traefik.http.middlewares.strip-clinica-api.replacepathregex.regex=^/clinica-api(.*)"
         - "traefik.http.middlewares.strip-clinica-api.replacepathregex.replacement=$${1}"
+        # ── Servicio backend ─────────────────────────────────────
         - "traefik.http.services.clinica-api.loadbalancer.server.port=8080"
         # Sticky sessions: misma réplica para la misma sesión (importante para WebSocket)
         - "traefik.http.services.clinica-api.loadbalancer.sticky.cookie=true"
