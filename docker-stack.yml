@@ -201,6 +201,9 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       # JVM tuning
       - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
+      # Cabeceras de proxy (Traefik → Spring Security reconoce HTTPS/forwarded)
+      - SERVER_FORWARD_HEADERS_STRATEGY=FRAMEWORK
+      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=DEBUG
       # Integración interna
       - AUTH_SERVICE_URL=http://auth-service:8082
       - SERVICE_NAME=clinica-backend
@@ -244,6 +247,10 @@ services:
         - "traefik.http.middlewares.clinica-rewrite.replacepathregex.regex=^/clinica-api/(.*)"
         - "traefik.http.middlewares.clinica-rewrite.replacepathregex.replacement=/api/$${1}"
         - "traefik.http.services.clinica-api.loadbalancer.server.port=8080"
+        # Sticky sessions: misma réplica para la misma sesión (importante para WebSocket)
+        - "traefik.http.services.clinica-api.loadbalancer.sticky.cookie=true"
+        - "traefik.http.services.clinica-api.loadbalancer.sticky.cookie.name=auth_session"
+        - "traefik.http.services.clinica-api.loadbalancer.sticky.cookie.secure=true"
     logging: *default-logging
 
   # ──────────────────────────────────────────────────────────
