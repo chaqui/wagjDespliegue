@@ -236,11 +236,12 @@ services:
           memory: 512M
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.clinica-api.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/api`)"
+        - "traefik.http.routers.clinica-api.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/clinica-api`)"
         - "traefik.http.routers.clinica-api.entrypoints=websecure"
         - "traefik.http.routers.clinica-api.tls.certresolver=letsencrypt"
         - "traefik.http.routers.clinica-api.middlewares=rate-limit"
-        - "traefik.http.middlewares.auth-rewrite.replacepathregex.regex=^/api/(.*)"
+        - "traefik.http.middlewares.strip-auth.stripprefix.prefixes=/clinica-api"
+        - "traefik.http.middlewares.auth-rewrite.replacepathregex.regex=^/clinica-api/(.*)"
         - "traefik.http.middlewares.auth-rewrite.replacepathregex.replacement=/api/$${1}"
         - "traefik.http.services.clinica-api.loadbalancer.server.port=8080"
     logging: *default-logging
