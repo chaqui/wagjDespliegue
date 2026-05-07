@@ -259,10 +259,10 @@ services:
       - ORIGIN=https://clinica-ixquic.duckdns.org
       - APP_BASE_HREF=/clinica/
       # URLs públicas para el browser (client-side)
-      - API_URL=https://clinica-ixquic.duckdns.org/api
-      - API_AUTH_URL=https://clinica-ixquic.duckdns.org/usuarios-api/clinica-api
+      - API_URL=https://clinica-ixquic.duckdns.org/clinica-api/api
+      - API_AUTH_URL=https://clinica-ixquic.duckdns.org/usuarios-api/api
       - AUTH_LOGIN=https://clinica-ixquic.duckdns.org/usuarios/login
-      - WS_URL=https://clinica-ixquic.duckdns.org/api/ws-clinica/websocket
+      - WS_URL=https://clinica-ixquic.duckdns.org/clinica-api/ws-clinica/websocket
       # URLs internas para SSR (evitan el bloqueo SSRF de Angular 19+)
       - SSR_API_URL=http://clinica-backend:8080
       - SSR_API_AUTH_URL=http://auth-service:8082
