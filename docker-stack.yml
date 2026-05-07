@@ -257,7 +257,7 @@ services:
       - APP_BASE_HREF=/clinica/
       # URLs públicas para el browser (client-side)
       - API_URL=https://clinica-ixquic.duckdns.org
-      - API_AUTH_URL=https://clinica-ixquic.duckdns.org/usuarios
+      - API_AUTH_URL=https://clinica-ixquic.duckdns.org/usuarios-api
       - AUTH_LOGIN=https://clinica-ixquic.duckdns.org/usuarios/login
       - WS_URL=https://clinica-ixquic.duckdns.org/api/ws-clinica/websocket
       # URLs internas para SSR (evitan el bloqueo SSRF de Angular 19+)
