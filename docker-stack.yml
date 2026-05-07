@@ -251,9 +251,8 @@ services:
         - "traefik.http.routers.clinica-api.entrypoints=websecure"
         - "traefik.http.routers.clinica-api.tls.certresolver=letsencrypt"
         - "traefik.http.routers.clinica-api.middlewares=rate-limit,strip-clinica-api"
-        - "traefik.http.middlewares.strip-clinica-api.stripprefix.prefixes=/clinica-api"
-        - "traefik.http.middlewares.clinica-rewrite.replacepathregex.regex=^/clinica-api/(.*)"
-        - "traefik.http.middlewares.clinica-rewrite.replacepathregex.replacement=/api/$${1}"
+        - "traefik.http.middlewares.strip-clinica-api.replacepathregex.regex=^/clinica-api(.*)"
+        - "traefik.http.middlewares.strip-clinica-api.replacepathregex.replacement=$${1}"
         - "traefik.http.services.clinica-api.loadbalancer.server.port=8080"
         # Sticky sessions: misma réplica para la misma sesión (importante para WebSocket)
         - "traefik.http.services.clinica-api.loadbalancer.sticky.cookie=true"
