@@ -266,7 +266,7 @@ services:
       - ORIGIN=https://clinica-ixquic.duckdns.org
       - APP_BASE_HREF=/clinica/
       # URLs públicas para el browser (client-side)
-      - API_URL=https://clinica-ixquic.duckdns.org/clinica-api/api
+      - API_URL=https://clinica-ixquic.duckdns.org/clinica-api
       - API_AUTH_URL=https://clinica-ixquic.duckdns.org/usuarios-api/api
       - AUTH_LOGIN=https://clinica-ixquic.duckdns.org/usuarios/login
       - WS_URL=https://clinica-ixquic.duckdns.org/clinica-api/ws-clinica/websocket
