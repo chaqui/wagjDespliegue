@@ -331,15 +331,13 @@ services:
   catalogos:
     image: ghcr.io/chaqui/catalogos:main
     environment:
-      - DB=mysql
-      # ↓ Apuntar a tus BDs externas
-      - MYSQL_HOST=${DB_HOST:-tu-host-mysql-externo}
-      - MYSQL_PORT=3306
-      - MYSQL_DATABASE=catalogos
+      - DB=postgres
+      - DB_DATABASE=postgres
+      - DB_USER=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
       - DB_SCHEMA=${DB_SCHEMA_CATALOGOS:-catalogos}
-      - MYSQL_USER=catalogos_user
-      - MYSQL_PASSWORD_FILE=/run/secrets/mysql_password
-      - MONGODB_URI=mongodb://tu-host-mongo-externo:27017/catalogos
       - AUTH_SERVICE_URL=http://auth-service:8082
       - SERVICE_NAME=catalogos
       - SERVICE_PORT=3001
