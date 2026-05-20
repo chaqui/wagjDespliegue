@@ -24,7 +24,7 @@ services:
 
   # ──────────────────────────────────────────────────────────
   # TRAEFIK - Proxy Inverso / API Gateway
-  # Dashboard: https://clinica-ixquic.duckdns.org/traefik/dashboard/
+  # Dashboard: https://repuestoshernandez.duckdns.org/traefik/dashboard/
   # ──────────────────────────────────────────────────────────
   traefik:
     image: traefik:v2.11
@@ -72,8 +72,8 @@ services:
       labels:
         - "traefik.enable=true"
         # Dashboard — generar hash: echo $(htpasswd -nb admin pass) | sed -e s/\\$/\\$\\$/g
-        # Dashboard accesible en: https://clinica-ixquic.duckdns.org/traefik/dashboard/
-        - "traefik.http.routers.dashboard.rule=Host(`clinica-ixquic.duckdns.org`) && (PathPrefix(`/traefik/api`) || PathPrefix(`/traefik/dashboard`))"
+        # Dashboard accesible en: https://repuestoshernandez.duckdns.org/traefik/dashboard/
+        - "traefik.http.routers.dashboard.rule=Host(`repuestoshernandez.duckdns.org`) && (PathPrefix(`/traefik/api`) || PathPrefix(`/traefik/dashboard`))"
         - "traefik.http.routers.dashboard.entrypoints=websecure"
         - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
         - "traefik.http.routers.dashboard.service=api@internal"
@@ -91,7 +91,7 @@ services:
   # ──────────────────────────────────────────────────────────
   # AUTH SERVICE - Backend de gestión de usuarios
   # Imagen:   ghcr.io/chaqui/auth-service:latest
-  # Ruta:     https://clinica-ixquic.duckdns.org/auth → :8082
+  # Ruta:     https://repuestoshernandez.duckdns.org/auth → :8082
   # ──────────────────────────────────────────────────────────
   auth-service:
     image: ghcr.io/chaqui/auth-service:latest
@@ -132,7 +132,7 @@ services:
           memory: 512M
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.auth.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/usuarios-api`)"
+        - "traefik.http.routers.auth.rule=Host(`repuestoshernandez.duckdns.org`) && PathPrefix(`/usuarios-api`)"
         - "traefik.http.routers.auth.entrypoints=websecure"
         - "traefik.http.routers.auth.tls.certresolver=letsencrypt"
         - "traefik.http.routers.auth.middlewares=rate-limit,strip-auth"
@@ -155,12 +155,12 @@ services:
   # ──────────────────────────────────────────────────────────
   # FRONTEND USUARIOS - UI de gestión de usuarios
   # Imagen:   ghcr.io/chaqui/frontend-usuarios:latest
-  # Ruta:     https://clinica-ixquic.duckdns.org/usuarios → :80
+  # Ruta:     https://repuestoshernandez.duckdns.org/usuarios → :80
   # ──────────────────────────────────────────────────────────
   frontend-usuarios:
     image:  ghcr.io/chaqui/frontend-usuarios:latest
     environment:
-      - API_URL=https://clinica-ixquic.duckdns.org/usuarios-api/api
+      - API_URL=https://repuestoshernandez.duckdns.org/usuarios-api/api
     networks:
       - public-net
     deploy:
@@ -172,7 +172,7 @@ services:
           memory: 256M
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.frontend-usuarios.rule=Host(`clinica-ixquic.duckdns.org`) && (PathPrefix(`/usuarios`) || Path(`/`))"
+        - "traefik.http.routers.frontend-usuarios.rule=Host(`repuestoshernandez.duckdns.org`) && (PathPrefix(`/usuarios`) || Path(`/`))"
         - "traefik.http.routers.frontend-usuarios.entrypoints=websecure"
         - "traefik.http.routers.frontend-usuarios.tls.certresolver=letsencrypt"
         - "traefik.http.routers.frontend-usuarios.middlewares=rate-limit,usuarios-strip"
@@ -185,7 +185,7 @@ services:
   # ──────────────────────────────────────────────────────────
   # INVENTARIO BACKEND - Backend core
   # Imagen:   ghcr.io/chaqui/inventario:latest
-  # Ruta:     https://clinica-ixquic.duckdns.org/api → :8080
+  # Ruta:     https://repuestoshernandez.duckdns.org/api → :8080
   # ─────────────────────────────────────────────── ───────────
   inventario-backend:
     image: ghcr.io/chaqui/inventario:latest
@@ -214,12 +214,12 @@ services:
       - SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL=true
       # Integración interna
       - AUTH_SERVICE_URL=http://auth-service:8082
-      - SERVICE_NAME=clinica-backend
+      - SERVICE_NAME=inventario-backend
       - SERVICE_PORT=8080
-      - SERVICE_URL=http://clinica-backend:8080
+      - SERVICE_URL=http://inventario-backend:8080
     volumes:
-      - clinica-uploads:/app/uploads
-      - clinica-logs:/var/log/clinica-medica
+      - inventario-uploads:/app/uploads
+      - inventario-logs:/var/log/inventario
       - type: bind
         source: ./certs
         target: /app/certs
@@ -228,7 +228,7 @@ services:
         source: ./keys
         target: /app/keys
       - type: bind
-        source: ./logs/clinica-backend
+        source: ./logs/inventario-backend
         target: /app/logs
       # Carpeta con llave pública para compartir con otros servicios
       - type: bind
@@ -251,14 +251,14 @@ services:
       labels:
         - "traefik.enable=true"
         # ── Router REST API ──────────────────────────────────────
-        - "traefik.http.routers.inventario-api.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/inventario-api`)"
+        - "traefik.http.routers.inventario-api.rule=Host(`repuestoshernandez.duckdns.org`) && PathPrefix(`/inventario-api`)"
         - "traefik.http.routers.inventario-api.entrypoints=websecure"
         - "traefik.http.routers.inventario-api.tls.certresolver=letsencrypt"
         - "traefik.http.routers.inventario-api.middlewares=rate-limit,strip-inventario-api"
         - "traefik.http.routers.inventario-api.priority=1"
         - "traefik.http.routers.inventario-api.service=inventario-api"
         # ── Router WebSocket / SockJS (prioridad mayor, sin rate-limit) ──
-        - "traefik.http.routers.inventario-ws.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/inventario-api/ws-inventario`)"
+        - "traefik.http.routers.inventario-ws.rule=Host(`repuestoshernandez.duckdns.org`) && PathPrefix(`/inventario-api/ws-inventario`)"
         - "traefik.http.routers.inventario-ws.entrypoints=websecure"
         - "traefik.http.routers.inventario-ws.tls.certresolver=letsencrypt"
         - "traefik.http.routers.inventario-ws.middlewares=strip-inventario-api"
@@ -276,25 +276,25 @@ services:
     logging: *default-logging
 
   # ──────────────────────────────────────────────────────────
-  # FRONTEND CLÍNICA - Frontend principal (core)
-  # Imagen:   ghcr.io/chaqui/frontend-clinica:latest
-  # Ruta:     https://clinica-ixquic.duckdns.org/ → :3000
+  # FRONTEND INVENTARIO - Frontend principal (core)
+  # Imagen:   ghcr.io/chaqui/frontend-inventario:latest
+  # Ruta:     https://repuestoshernandez.duckdns.org/ → :3000
   # ──────────────────────────────────────────────────────────
   frontend-inventario:
     image:  ghcr.io/chaqui/frontend-inventario:latest
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - ORIGIN=https://clinica-ixquic.duckdns.org
-      - APP_BASE_HREF=/clinica/
+      - ORIGIN=https://repuestoshernandez.duckdns.org
+      - APP_BASE_HREF=/inventario/
       # URLs públicas para el browser (client-side)
-      - API_URL=https://clinica-ixquic.duckdns.org/inventario-api
-      - API_AUTH_URL=https://clinica-ixquic.duckdns.org/usuarios-api/api
-      - AUTH_LOGIN=https://clinica-ixquic.duckdns.org/usuarios/login
-      - WS_URL=https://clinica-ixquic.duckdns.org/inventario-api/ws-inventario
-      - URL_CATALOGO=https://clinica-ixquic.duckdns.org/catalogos
+      - API_URL=https://repuestoshernandez.duckdns.org/inventario-api
+      - API_AUTH_URL=https://repuestoshernandez.duckdns.org/usuarios-api/api
+      - AUTH_LOGIN=https://repuestoshernandez.duckdns.org/usuarios/login
+      - WS_URL=https://repuestoshernandez.duckdns.org/inventario-api/ws-inventario
+      - URL_CATALOGO=https://repuestoshernandez.duckdns.org/catalogos
       # URLs internas para SSR (evitan el bloqueo SSRF de Angular 19+)
-      - SSR_API_URL=http://clinica-backend:8080
+      - SSR_API_URL=http://inventario-backend:8080
       - SSR_API_AUTH_URL=http://auth-service:8082
       - LOG_LEVEL=info
       - LOG_FORMAT=json
@@ -303,7 +303,7 @@ services:
       - SSR_USE_INTERNAL_URLS=true
 
     volumes:
-      - clinica-frontend-data:/app/data
+      - inventario-frontend-data:/app/data
       - /etc/timezone:/etc/timezone:ro
     networks:
       - public-net
@@ -316,20 +316,20 @@ services:
           memory: 512M
       labels:
         - "traefik.enable=true"
-        # Router principal: sirve el frontend bajo /clinica, stripping el prefijo antes de pasar al SSR
-        - "traefik.http.routers.frontend-core.rule=Host(`clinica-ixquic.duckdns.org`) && (PathPrefix(`/clinica`))"
+        # Router principal: sirve el frontend bajo /inventario, stripping el prefijo antes de pasar al SSR
+        - "traefik.http.routers.frontend-core.rule=Host(`repuestoshernandez.duckdns.org`) && (PathPrefix(`/inventario`))"
         - "traefik.http.routers.frontend-core.entrypoints=websecure"
         - "traefik.http.routers.frontend-core.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.frontend-core.middlewares=rate-limit,strip-clinica"
+        - "traefik.http.routers.frontend-core.middlewares=rate-limit,strip-inventario"
         - "traefik.http.routers.frontend-core.priority=1"
-        - "traefik.http.middlewares.strip-clinica.stripprefix.prefixes=/clinica"
+        - "traefik.http.middlewares.strip-inventario.stripprefix.prefixes=/inventario"
         - "traefik.http.services.frontend-core.loadbalancer.server.port=3000"
     logging: *default-logging
 
   # ──────────────────────────────────────────────────────────
   # CATÁLOGOS BACKEND
   # Imagen:   ghcr.io/chaqui/catalogos:main
-  # Ruta:     https://clinica-ixquic.duckdns.org/catalogos → :3001
+  # Ruta:     https://repuestoshernandez.duckdns.org/catalogos → :3001
   # ──────────────────────────────────────────────────────────
   catalogos:
     image: ghcr.io/chaqui/catalogos:main
@@ -357,7 +357,7 @@ services:
           memory: 256M
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.catalogos.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/catalogos`)"
+        - "traefik.http.routers.catalogos.rule=Host(`repuestoshernandez.duckdns.org`) && PathPrefix(`/catalogos`)"
         - "traefik.http.routers.catalogos.entrypoints=websecure"
         - "traefik.http.routers.catalogos.tls.certresolver=letsencrypt"
         - "traefik.http.routers.catalogos.middlewares=rate-limit,strip-catalogos"
@@ -387,10 +387,10 @@ networks:
 volumes:
   traefik-certificates:
     driver: local
-  clinica-uploads:
+  inventario-uploads:
     driver: local
-  clinica-logs:
+  inventario-logs:
     driver: local
-  clinica-frontend-data:
+  inventario-frontend-data:
     driver: local
 
