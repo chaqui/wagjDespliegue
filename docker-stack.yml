@@ -183,12 +183,12 @@ services:
     logging: *default-logging
 
   # ──────────────────────────────────────────────────────────
-  # CLÍNICA BACKEND - Backend core
-  # Imagen:   ghcr.io/chaqui/backend-clinica:latest
+  # INVENTARIO BACKEND - Backend core
+  # Imagen:   ghcr.io/chaqui/inventario:latest
   # Ruta:     https://clinica-ixquic.duckdns.org/api → :8080
-  # ──────────────────────────────────────────────────────────
-  clinica-backend:
-    image: ghcr.io/chaqui/backend-clinica:latest
+  # ─────────────────────────────────────────────── ───────────
+  inventario-backend:
+    image: ghcr.io/chaqui/inventario:latest
     environment:
       # Perfil Spring Boot (postgres activa la configuración PostgreSQL)
       - SPRING_PROFILES_ACTIVE=postgres
@@ -196,7 +196,7 @@ services:
       - DB_URL=${DB_URL}
       - DB_USER=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
-      - DB_SCHEMA=${DB_SCHEMA_CLINICA}
+      - DB_SCHEMA=${DB_SCHEMA_INVENTARIO}
       # Seguridad
       - JWT_SECRET=${JWT_SECRET}
       # JVM tuning
@@ -235,6 +235,9 @@ services:
         source: ./pubkeys
         target: /app/keys/public
         read_only: true
+      - type: bind
+        source: ./data/inventario
+        target: /uploads
       
     networks:
       - public-net
@@ -248,28 +251,28 @@ services:
       labels:
         - "traefik.enable=true"
         # ── Router REST API ──────────────────────────────────────
-        - "traefik.http.routers.clinica-api.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/clinica-api`)"
-        - "traefik.http.routers.clinica-api.entrypoints=websecure"
-        - "traefik.http.routers.clinica-api.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.clinica-api.middlewares=rate-limit,strip-clinica-api"
-        - "traefik.http.routers.clinica-api.priority=1"
-        - "traefik.http.routers.clinica-api.service=clinica-api"
+        - "traefik.http.routers.inventario-api.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/inventario-api`)"
+        - "traefik.http.routers.inventario-api.entrypoints=websecure"
+        - "traefik.http.routers.inventario-api.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.inventario-api.middlewares=rate-limit,strip-inventario-api"
+        - "traefik.http.routers.inventario-api.priority=1"
+        - "traefik.http.routers.inventario-api.service=inventario-api"
         # ── Router WebSocket / SockJS (prioridad mayor, sin rate-limit) ──
-        - "traefik.http.routers.clinica-ws.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/clinica-api/ws-clinica`)"
-        - "traefik.http.routers.clinica-ws.entrypoints=websecure"
-        - "traefik.http.routers.clinica-ws.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.clinica-ws.middlewares=strip-clinica-api"
-        - "traefik.http.routers.clinica-ws.priority=10"
-        - "traefik.http.routers.clinica-ws.service=clinica-api"
+        - "traefik.http.routers.inventario-ws.rule=Host(`clinica-ixquic.duckdns.org`) && PathPrefix(`/inventario-api/ws-inventario`)"
+        - "traefik.http.routers.inventario-ws.entrypoints=websecure"
+        - "traefik.http.routers.inventario-ws.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.inventario-ws.middlewares=strip-inventario-api"
+        - "traefik.http.routers.inventario-ws.priority=10"
+        - "traefik.http.routers.inventario-ws.service=inventario-api"
         # ── Middleware path rewrite (compartido) ─────────────────
-        - "traefik.http.middlewares.strip-clinica-api.replacepathregex.regex=^/clinica-api(.*)"
-        - "traefik.http.middlewares.strip-clinica-api.replacepathregex.replacement=$${1}"
+        - "traefik.http.middlewares.strip-inventario-api.replacepathregex.regex=^/inventario-api(.*)"
+        - "traefik.http.middlewares.strip-inventario-api.replacepathregex.replacement=$${1}"
         # ── Servicio backend ─────────────────────────────────────
-        - "traefik.http.services.clinica-api.loadbalancer.server.port=8080"
+        - "traefik.http.services.inventario-api.loadbalancer.server.port=8080"
         # Sticky sessions: misma réplica para la misma sesión (importante para WebSocket)
-        - "traefik.http.services.clinica-api.loadbalancer.sticky.cookie=true"
-        - "traefik.http.services.clinica-api.loadbalancer.sticky.cookie.name=auth_session"
-        - "traefik.http.services.clinica-api.loadbalancer.sticky.cookie.secure=true"
+        - "traefik.http.services.inventario-api.loadbalancer.sticky.cookie=true"
+        - "traefik.http.services.inventario-api.loadbalancer.sticky.cookie.name=auth_session"
+        - "traefik.http.services.inventario-api.loadbalancer.sticky.cookie.secure=true"
     logging: *default-logging
 
   # ──────────────────────────────────────────────────────────
@@ -277,18 +280,18 @@ services:
   # Imagen:   ghcr.io/chaqui/frontend-clinica:latest
   # Ruta:     https://clinica-ixquic.duckdns.org/ → :3000
   # ──────────────────────────────────────────────────────────
-  frontend-clinica:
-    image:  ghcr.io/chaqui/frontend-clinica:latest
+  frontend-inventario:
+    image:  ghcr.io/chaqui/frontend-inventario:latest
     environment:
       - NODE_ENV=production
       - PORT=3000
       - ORIGIN=https://clinica-ixquic.duckdns.org
       - APP_BASE_HREF=/clinica/
       # URLs públicas para el browser (client-side)
-      - API_URL=https://clinica-ixquic.duckdns.org/clinica-api
+      - API_URL=https://clinica-ixquic.duckdns.org/inventario-api
       - API_AUTH_URL=https://clinica-ixquic.duckdns.org/usuarios-api/api
       - AUTH_LOGIN=https://clinica-ixquic.duckdns.org/usuarios/login
-      - WS_URL=https://clinica-ixquic.duckdns.org/clinica-api/ws-clinica
+      - WS_URL=https://clinica-ixquic.duckdns.org/inventario-api/ws-inventario
       - URL_CATALOGO=https://clinica-ixquic.duckdns.org/catalogos
       # URLs internas para SSR (evitan el bloqueo SSRF de Angular 19+)
       - SSR_API_URL=http://clinica-backend:8080
