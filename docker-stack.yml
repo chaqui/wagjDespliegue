@@ -188,7 +188,7 @@ services:
   # Ruta:     https://repuestoshernandez.duckdns.org/api → :8080
   # ─────────────────────────────────────────────── ───────────
   inventario-backend:
-    image: ghcr.io/chaqui/inventario:latest
+    image: ghcr.io/chaqui/inventario:main
     environment:
       # Perfil Spring Boot (postgres activa la configuración PostgreSQL)
       - SPRING_PROFILES_ACTIVE=postgres
