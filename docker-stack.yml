@@ -158,7 +158,7 @@ services:
   # Ruta:     https://repuestoshernandez.duckdns.org/usuarios → :80
   # ──────────────────────────────────────────────────────────
   frontend-usuarios:
-    image:  ghcr.io/chaqui/frontend-usuarios:latest
+    image:  ghcr.io/chaqui/frontend-usuarios:main
     environment:
       - API_URL=https://repuestoshernandez.duckdns.org/usuarios-api/api
     networks:
