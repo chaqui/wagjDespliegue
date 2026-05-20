@@ -268,7 +268,7 @@ services:
         - "traefik.http.middlewares.strip-inventario-api.replacepathregex.regex=^/inventario-api(.*)"
         - "traefik.http.middlewares.strip-inventario-api.replacepathregex.replacement=$${1}"
         # ── Servicio backend ─────────────────────────────────────
-        - "traefik.http.services.inventario-api.loadbalancer.server.port=8080"
+        - "traefik.http.services.inventario-api.loadbalancer.server.port=8085"
         # Sticky sessions: misma réplica para la misma sesión (importante para WebSocket)
         - "traefik.http.services.inventario-api.loadbalancer.sticky.cookie=true"
         - "traefik.http.services.inventario-api.loadbalancer.sticky.cookie.name=auth_session"
