@@ -164,7 +164,7 @@ remove_stack_if_exists
 
 # Preparación: crear carpetas necesarias para montajes bind (keys, logs, certs, pubkeys)
 prepare_dirs() {
-  DIRS=("./keys" "./keys/public" "./logs/auth" "./logs/clinica-backend" "./certs" "./pubkeys")
+  DIRS=("./keys" "./keys/public" "./logs/auth" "./logs/inventario-backend" "./certs" "./pubkeys")
   for d in "${DIRS[@]}"; do
     if [ ! -d "$d" ]; then
       log "Creando carpeta $d"
