@@ -277,11 +277,11 @@ services:
 
   # ──────────────────────────────────────────────────────────
   # FRONTEND INVENTARIO - Frontend principal (core)
-  # Imagen:   ghcr.io/chaqui/frontend-inventario:latest
+  # Imagen:   ghcr.io/chaqui/frontend-inventario:main
   # Ruta:     https://repuestoshernandez.duckdns.org/ → :3000
   # ──────────────────────────────────────────────────────────
   frontend-inventario:
-    image:  ghcr.io/chaqui/frontend-inventario:latest
+    image:  ghcr.io/chaqui/frontend-inventario:main
     environment:
       - NODE_ENV=production
       - PORT=3000
