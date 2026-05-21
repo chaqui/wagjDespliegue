@@ -1,0 +1,54 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# watch-deploy.service  —  Servicio systemd para watch_and_deploy.sh
+#
+# Instalación (Linux, una sola vez):
+#   1. Edita WorkingDirectory y ExecStart con la ruta real del proyecto.
+#   2. Copia el archivo al directorio de systemd:
+#        sudo cp watch-deploy.service /etc/systemd/system/
+#   3. Recarga la configuración de systemd:
+#        sudo systemctl daemon-reload
+#   4. Activa el servicio (arranca con el sistema):
+#        sudo systemctl enable watch-deploy
+#   5. Inícialo ahora mismo:
+#        sudo systemctl start watch-deploy
+#
+# Comandos útiles:
+#   sudo systemctl status  watch-deploy     # ver estado
+#   sudo systemctl stop    watch-deploy     # detener
+#   sudo systemctl restart watch-deploy     # reiniciar
+#   sudo journalctl -u watch-deploy -f      # ver logs en tiempo real
+# ─────────────────────────────────────────────────────────────────────────────
+
+[Unit]
+Description=Vigilar GHCR y redesplegar Docker Swarm automáticamente
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+
+# ── Ajusta esta ruta a donde está el proyecto en el servidor ──
+WorkingDirectory=/ruta/al/proyecto/despliegue-inventario
+ExecStart=/bin/bash /ruta/al/proyecto/despliegue-inventario/watch_and_deploy.sh
+
+# Variables de entorno (alternativa: usar un archivo .env)
+# Si usas archivo de entorno del proyecto cámbialo aquí:
+EnvironmentFile=-/ruta/al/proyecto/despliegue-inventario/.env
+Environment="GITHUB_TOKEN=ghp_tutoken"
+Environment="POLL_INTERVAL=60"
+Environment="LOOP_MODE=true"
+# Environment="WEBHOOK_URL=https://hooks.slack.com/..."
+
+# Política de reinicio: reiniciar siempre que el proceso termine
+Restart=always
+RestartSec=10
+
+# Redirigir salida al journal (visible con journalctl -u watch-deploy)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=watch-deploy
+
+[Install]
+WantedBy=multi-user.target
