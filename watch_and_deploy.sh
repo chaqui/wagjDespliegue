@@ -27,6 +27,8 @@
 #   LOOP_MODE        true = bucle continuo / false = solo un ciclo (default: true)
 #   WEBHOOK_URL      URL Slack/Discord/genérica para notificación (opcional)
 #   STATUS_FILE      Ruta del JSON de estado             (default: ./deploy-status.json)
+#   TELEGRAM_BOT_TOKEN Token del bot de Telegram         (opcional)
+#   TELEGRAM_CHAT_ID    Chat ID de Telegram              (opcional)
 #
 # FUENTE DE IMÁGENES:
 #   Las imágenes se leen automáticamente de COMPOSE_FILE en cada ciclo.
@@ -48,10 +50,33 @@ COMPOSE_FILE="${COMPOSE_FILE:-${SCRIPT_DIR}/docker-stack.yml}"
 IMAGE_REGISTRY="${IMAGE_REGISTRY:-ghcr.io}"
 POLL_INTERVAL="${POLL_INTERVAL:-60}"
 DEPLOY_SCRIPT="${DEPLOY_SCRIPT:-${SCRIPT_DIR}/deploy_sequential.sh}"
+
 LOG="${LOG:-${SCRIPT_DIR}/redeploy.log}"
 STATUS_FILE="${STATUS_FILE:-${SCRIPT_DIR}/deploy-status.json}"
 LOOP_MODE="${LOOP_MODE:-true}"
 WEBHOOK_URL="${WEBHOOK_URL:-}"
+# Telegram
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
+# ─────────────────────────────────────────────────────────────────────────────
+# Notificación por Telegram
+# ─────────────────────────────────────────────────────────────────────────────
+notify_telegram() {
+  local status="$1" message="$2"
+  [ -z "$TELEGRAM_BOT_TOKEN" ] && return 0
+  [ -z "$TELEGRAM_CHAT_ID" ] && return 0
+
+  local emoji
+  [ "$status" = "success" ] && emoji="✅" || emoji="❌"
+  local text
+  text="${emoji} [${STACK_NAME}] ${message}"
+
+  curl -fsSL -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+    -d "chat_id=${TELEGRAM_CHAT_ID}" \
+    --data-urlencode "text=${text}" \
+    -d "parse_mode=Markdown" >/dev/null 2>&1 || \
+    log "ADVERTENCIA: no se pudo enviar notificación a Telegram."
+}
 
 # Array que se rellena dinámicamente en load_images_from_compose()
 IMAGES=()
@@ -308,6 +333,7 @@ notify_all() {
   write_status "$status" "$message" "$triggered_by"
   notify_desktop "[${STACK_NAME}] Despliegue ${status}" "$message"
   notify_webhook "$status" "$message"
+  notify_telegram "$status" "$message"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────

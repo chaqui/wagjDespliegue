@@ -1,0 +1,12 @@
+[[Unit]
+Description=Ejecuta el monitoreo de logs cada 30 minutos
+After=network-online.target
+Wants=network-online.target
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+Unit=monitor-logs-telegram.service
+
+[Install]
+WantedBy=timers.target

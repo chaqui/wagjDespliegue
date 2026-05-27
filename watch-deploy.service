@@ -52,3 +52,22 @@ SyslogIdentifier=watch-deploy
 
 [Install]
 WantedBy=multi-user.target
+
+# Servicio para monitoreo de excepciones y notificación Telegram
+[Unit]
+Description=Monitorea logs y notifica excepciones por Telegram
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/ruta/al/proyecto/despliegue-inventario
+ExecStart=/bin/bash /ruta/al/proyecto/despliegue-inventario/monitor_logs_and_notify.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=monitor-logs-telegram
+
+[Install]
+WantedBy=multi-user.target
