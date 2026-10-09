@@ -1,190 +1,261 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Descarga las imagenes declaradas en docker-stack.yml y actualiza solamente
-# los servicios Docker Swarm cuyo digest haya cambiado. Si el stack no existe,
-# ejecuta el script de despliegue inicial del proyecto.
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STACK_NAME="${STACK_NAME:-sistema}"
 COMPOSE_FILE="${COMPOSE_FILE:-${SCRIPT_DIR}/docker-stack.yml}"
 INITIAL_DEPLOY_SCRIPT="${INITIAL_DEPLOY_SCRIPT:-${SCRIPT_DIR}/deploy_sequential.sh}"
+ENV_FILE="${ENV_FILE:-${SCRIPT_DIR}/.env}"
+ENV_STATE_FILE="${ENV_STATE_FILE:-${SCRIPT_DIR}/.env.applied.sha256}"
+ENV_HASH_KEY_FILE="${ENV_HASH_KEY_FILE:-${SCRIPT_DIR}/.env.hash.key}"
 LOG_FILE="${LOG_FILE:-${SCRIPT_DIR}/update-images.log}"
+STATUS_FILE="${STATUS_FILE:-${SCRIPT_DIR}/deploy-status.json}"
 LOCK_FILE="${LOCK_FILE:-/tmp/${STACK_NAME}-update-images.lock}"
+HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-180}"
+PRUNE_OLD_IMAGES="${PRUNE_OLD_IMAGES:-false}"
+PRUNE_UNTIL="${PRUNE_UNTIL:-168h}"
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
+WEBHOOK_URL="${WEBHOOK_URL:-}"
 
-log() {
-  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG_FILE"
-}
+MODE=all DRY_RUN=false FORCE_SERVICE=""
+UPDATED_SERVICES=() FAILED_SERVICES=() UNCHANGED_SERVICES=() TMP_FILES=()
 
-die() {
-  log "ERROR: $*"
-  exit 1
+usage() {
+  cat <<'EOF'
+Uso: ./update_images.sh [opcion]
+  --dry-run          Muestra cambios sin modificar servicios
+  --env-only         Revisa y aplica solamente .env
+  --images-only      Revisa y aplica solamente imagenes
+  --force SERVICIO   Fuerza la actualizacion de un servicio
+  --status           Muestra el ultimo resultado y el stack actual
+  -h, --help         Muestra esta ayuda
+EOF
 }
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY_RUN=true ;;
+    --env-only) MODE=env ;;
+    --images-only) MODE=images ;;
+    --force) [ "$#" -ge 2 ] || { echo "Falta el servicio" >&2; exit 2; }; FORCE_SERVICE="$2"; shift ;;
+    --status) MODE=status ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Opcion desconocida: $1" >&2; usage; exit 2 ;;
+  esac
+  shift
+done
+
+log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG_FILE"; }
+cleanup() { [ "${#TMP_FILES[@]}" -eq 0 ] || rm -f "${TMP_FILES[@]}"; }
+trap cleanup EXIT
+json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/[[:cntrl:]]/ /g'; }
+write_status() {
+  local status="$1" message="$2" tmp
+  tmp="$(mktemp "${STATUS_FILE}.XXXXXX")"; TMP_FILES+=("$tmp")
+  printf '{"status":"%s","timestamp":"%s","stack":"%s","message":"%s"}\n' \
+    "$status" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$STACK_NAME" "$(json_escape "$message")" > "$tmp"
+  mv "$tmp" "$STATUS_FILE"
+}
+notify() {
+  local status="$1" message="$2" emoji="❌"
+  [ "$status" = success ] && emoji="✅"
+  write_status "$status" "$message" 2>/dev/null || true
+  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ] && command -v curl >/dev/null; then
+    curl -fsSL -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" -d "chat_id=${TELEGRAM_CHAT_ID}" \
+      --data-urlencode "text=${emoji} [${STACK_NAME}] ${message}" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$WEBHOOK_URL" ] && command -v curl >/dev/null; then
+    curl -fsSL -X POST -H 'Content-Type: application/json' \
+      -d "{\"text\":\"${emoji} [${STACK_NAME}] $(json_escape "$message")\"}" "$WEBHOOK_URL" >/dev/null 2>&1 || true
+  fi
+}
+die() { log "ERROR: $*"; notify failure "$*"; exit 1; }
 
 command -v docker >/dev/null 2>&1 || die "Docker no esta instalado."
 [ -f "$COMPOSE_FILE" ] || die "No existe $COMPOSE_FILE."
+if command -v flock >/dev/null 2>&1; then exec 9>"$LOCK_FILE"; flock -n 9 || die "Ya hay otra actualizacion en curso."; fi
+if docker info >/dev/null 2>&1; then DOCKER=(docker)
+elif command -v sudo >/dev/null 2>&1 && sudo -n docker info >/dev/null 2>&1; then DOCKER=(sudo -E docker)
+else die "El usuario no tiene acceso a Docker y sudo requiere interaccion."; fi
+docker_cmd() { "${DOCKER[@]}" "$@"; }
+stack_exists() { docker_cmd stack ls --format '{{.Name}}' 2>/dev/null | grep -Fxq "$STACK_NAME"; }
+is_manager() { [ "$(docker_cmd info --format '{{.Swarm.ControlAvailable}}' 2>/dev/null || true)" = true ]; }
 
-# Evita que cron o systemd ejecuten dos actualizaciones simultaneas.
-if command -v flock >/dev/null 2>&1; then
-  exec 9>"$LOCK_FILE"
-  flock -n 9 || die "Ya hay otra actualizacion en curso."
-fi
-
-if docker info >/dev/null 2>&1; then
-  DOCKER=(docker)
-elif command -v sudo >/dev/null 2>&1 && sudo -n docker info >/dev/null 2>&1; then
-  DOCKER=(sudo -E docker)
-else
-  die "El usuario no tiene acceso a Docker y sudo requiere interaccion."
-fi
-
-docker_cmd() {
-  "${DOCKER[@]}" "$@"
+load_env() {
+  local line key value
+  [ -f "$ENV_FILE" ] || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    line="${line#export }"
+    key="${line%%=*}"
+    value="${line#*=}"
+    key="$(printf '%s' "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "Variable invalida en .env: $key"
+    if [[ "$value" == \"*\" ]] || [[ "$value" == \'*\' ]]; then value="${value:1:${#value}-2}"; fi
+    export "$key=$value"
+  done < "$ENV_FILE"
 }
-
-is_manager() {
-  [ "$(docker_cmd info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null || true)" = "active" ] &&
-    [ "$(docker_cmd info --format '{{.Swarm.ControlAvailable}}' 2>/dev/null || true)" = "true" ]
-}
-
-stack_exists() {
-  docker_cmd stack ls --format '{{.Name}}' 2>/dev/null | grep -Fxq "$STACK_NAME"
-}
-
-# Emite: <servicio-compose>|<imagen>
-read_service_images() {
-  awk '
-    /^services:[[:space:]]*$/ { in_services=1; next }
-    in_services && /^[^[:space:]]/ { in_services=0 }
-    in_services && /^  [[:alnum:]_.-]+:[[:space:]]*$/ {
-      service=$1
-      sub(/:$/, "", service)
-    }
-    in_services && /^[[:space:]]{4}image:[[:space:]]*/ {
-      image=$0
-      sub(/^[[:space:]]*image:[[:space:]]*/, "", image)
-      sub(/[[:space:]]*(#.*)?$/, "", image)
-      gsub(/^['\''"]|['\''"]$/, "", image)
-      print service "|" image
-    }
-  ' "$COMPOSE_FILE"
-}
-
-image_digest() {
-  local image="$1" repository candidate
-  repository="${image%%@*}"
-  if [[ "$repository" == *:* ]] && [[ "${repository##*/}" == *:* ]]; then
-    repository="${repository%:*}"
+validate_env() {
+  local required=(ACME_EMAIL DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET) missing=() key
+  for key in "${required[@]}"; do [ -n "${!key:-}" ] || missing+=("$key"); done
+  [ "${#missing[@]}" -eq 0 ] || die "Variables obligatorias vacias o ausentes: ${missing[*]}"
+  [[ "$DB_URL" == jdbc:postgresql://* ]] || die "DB_URL debe iniciar con jdbc:postgresql://"
+  [ "${#JWT_SECRET}" -ge 32 ] || die "JWT_SECRET debe tener al menos 32 caracteres."
+  if [ -z "${TRAEFIK_DASHBOARD_AUTH:-}" ] && { [ -z "${TRAEFIK_USER:-}" ] || [ -z "${TRAEFIK_PASSWORD:-}" ]; }; then
+    die "Defina TRAEFIK_DASHBOARD_AUTH o TRAEFIK_USER y TRAEFIK_PASSWORD."
   fi
-
-  while IFS= read -r candidate; do
-    case "$candidate" in
-      "${repository}@"*) printf '%s\n' "${candidate##*@}"; return 0 ;;
-    esac
-  done < <(docker_cmd image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image" 2>/dev/null || true)
-
+  docker_cmd stack config -c "$COMPOSE_FILE" >/dev/null || die "docker-stack.yml o .env no son validos."
+}
+ensure_hash_key() {
+  [ -s "$ENV_HASH_KEY_FILE" ] && return
+  command -v openssl >/dev/null || return
+  umask 077; openssl rand -hex 32 > "$ENV_HASH_KEY_FILE"
+}
+hash_value() {
+  if command -v openssl >/dev/null 2>&1 && [ -s "$ENV_HASH_KEY_FILE" ]; then
+    printf '%s' "$1" | openssl dgst -sha256 -hmac "$(<"$ENV_HASH_KEY_FILE")" | awk '{print $NF}'
+  elif command -v sha256sum >/dev/null; then printf '%s' "$1" | sha256sum | awk '{print $1}'
+  else printf '%s' "$1" | shasum -a 256 | awk '{print $1}'; fi
+}
+build_env_state() {
+  local output="$1" key; : > "$output"
+  while read -r key; do printf '%s=%s\n' "$key" "$(hash_value "${!key-}")"; done < <(
+    sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=.*/\2/p' "$ENV_FILE" | sort -u
+  ) >> "$output"; chmod 600 "$output"
+}
+env_changes() {
+  local current="$1" key hash previous
+  while IFS='=' read -r key hash; do
+    previous="$(awk -F= -v k="$key" '$1==k {print $2; exit}' "$ENV_STATE_FILE" 2>/dev/null || true)"
+    if [ -z "$previous" ]; then printf 'NUEVA|%s\n' "$key"; elif [ "$previous" != "$hash" ]; then printf 'MODIFICADA|%s\n' "$key"; fi
+  done < "$current"
+  if [ -f "$ENV_STATE_FILE" ]; then
+    while IFS='=' read -r key _; do grep -q "^${key}=" "$current" || printf 'ELIMINADA|%s\n' "$key"; done < "$ENV_STATE_FILE"
+  fi
+}
+services_for_variable() {
+  local key="$1" marker='${'"$key"'}'
+  awk -v marker="$marker" '/^services:/ {inside=1; next} inside && /^[^ ]/ {inside=0} inside && /^  [[:alnum:]_.-]+:$/ {s=$1; sub(/:$/, "",s)} inside && index($0,marker) {print s}' "$COMPOSE_FILE"
+  case "$key" in DB_URL|DB_USERNAME|DB_PASSWORD|JWT_SECRET)
+    awk '/^  [[:alnum:]_.-]+:$/ {s=$1; sub(/:$/, "",s)} /\*backend-environment/ {print s}' "$COMPOSE_FILE";; esac
+}
+capture_versions() {
+  local svc; while read -r svc; do printf '%s|%s\n' "$svc" "$(docker_cmd service inspect --format '{{.Version.Index}}' "$svc")"; done < <(
+    docker_cmd service ls --filter "label=com.docker.stack.namespace=${STACK_NAME}" --format '{{.Name}}'
+  )
+}
+changed_services_since() {
+  local svc old new; while IFS='|' read -r svc old; do new="$(docker_cmd service inspect --format '{{.Version.Index}}' "$svc" 2>/dev/null || true)"; [ -n "$new" ] && [ "$new" != "$old" ] && echo "$svc"; done < "$1"
+}
+desired_replicas() { docker_cmd service inspect --format '{{if .Spec.Mode.Replicated}}{{.Spec.Mode.Replicated.Replicas}}{{end}}' "$1" 2>/dev/null; }
+running_replicas() { docker_cmd service ps --filter desired-state=running --format '{{.CurrentState}}' "$1" 2>/dev/null | grep -c '^Running' || true; }
+wait_healthy() {
+  local svc="$1" desired elapsed=0 running state
+  desired="$(desired_replicas "$svc")"; [ -n "$desired" ] || return 0
+  while [ "$elapsed" -lt "$HEALTH_TIMEOUT" ]; do
+    running="$(running_replicas "$svc")"; state="$(docker_cmd service inspect --format '{{if .UpdateStatus}}{{.UpdateStatus.State}}{{end}}' "$svc" 2>/dev/null || true)"
+    [ "$running" -eq "$desired" ] && [[ "$state" != updating* ]] && [ "$state" != paused ] && return 0
+    [ "$state" = paused ] && break; sleep 5; elapsed=$((elapsed+5))
+  done; return 1
+}
+verify_or_rollback() {
+  local svc failed=()
+  for svc in "$@"; do log "Verificando $svc (timeout ${HEALTH_TIMEOUT}s)..."; wait_healthy "$svc" || failed+=("$svc"); done
+  [ "${#failed[@]}" -eq 0 ] && return 0
+  for svc in "${failed[@]}"; do log "ERROR: $svc no quedo saludable; rollback."; docker_cmd service rollback --detach=true "$svc" 2>&1 | tee -a "$LOG_FILE" || true; FAILED_SERVICES+=("$svc"); done
   return 1
 }
-
-current_service_digest() {
-  local swarm_service="$1" current
-  current="$(docker_cmd service inspect --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' "$swarm_service" 2>/dev/null || true)"
-  case "$current" in
-    *@*) printf '%s\n' "${current##*@}" ;;
-    *) printf '\n' ;;
-  esac
+save_replicas() {
+  local svc replicas; : > "$1"
+  while read -r svc; do replicas="$(desired_replicas "$svc")"; [ -n "$replicas" ] && printf '%s|%s\n' "$svc" "$replicas" >> "$1"; done < <(
+    docker_cmd service ls --filter "label=com.docker.stack.namespace=${STACK_NAME}" --format '{{.Name}}'
+  )
 }
-
-if ! stack_exists; then
-  log "El stack '$STACK_NAME' no existe; iniciando el primer despliegue."
-  [ -f "$INITIAL_DEPLOY_SCRIPT" ] || die "No existe $INITIAL_DEPLOY_SCRIPT."
-  (
-    cd "$SCRIPT_DIR"
-    bash "$INITIAL_DEPLOY_SCRIPT"
-  ) 2>&1 | tee -a "$LOG_FILE"
-  log "Primer despliegue finalizado."
-  exit 0
-fi
-
-is_manager || die "El stack existe, pero este nodo no es manager del Swarm."
-
-declare -a SERVICE_IMAGES=()
-while IFS= read -r mapping; do
-  [ -n "$mapping" ] && SERVICE_IMAGES+=("$mapping")
-done < <(read_service_images)
-[ "${#SERVICE_IMAGES[@]}" -gt 0 ] || die "No se encontraron servicios con image: en $COMPOSE_FILE."
-
-declare -A PULLED_DIGESTS=()
-declare -A PULL_FAILED=()
-declare -a UPDATED_SERVICES=()
-declare -a UNCHANGED_SERVICES=()
-declare -a FAILED_SERVICES=()
-
-log "Descargando las imagenes declaradas en $COMPOSE_FILE..."
-for mapping in "${SERVICE_IMAGES[@]}"; do
-  image="${mapping#*|}"
-  [ -n "${PULLED_DIGESTS[$image]+x}" ] && continue
-  [ -n "${PULL_FAILED[$image]+x}" ] && continue
-
-  log "Descargando $image"
-  if ! docker_cmd pull "$image" 2>&1 | tee -a "$LOG_FILE"; then
-    log "ERROR: no se pudo descargar $image; sus servicios no se actualizaran."
-    PULL_FAILED["$image"]=1
-    continue
+restore_replicas() {
+  local svc wanted current; while IFS='|' read -r svc wanted; do current="$(desired_replicas "$svc")"; if [ "$current" != "$wanted" ]; then log "Restaurando replicas de $svc: $current -> $wanted"; docker_cmd service scale "${svc}=${wanted}" >/dev/null; fi; done < "$1"
+}
+sync_env() {
+  [ -f "$ENV_FILE" ] || { log "ADVERTENCIA: no existe $ENV_FILE; se omite .env."; return; }
+  load_env; validate_env; ensure_hash_key
+  local current changes replicas versions services type key svc state_tmp
+  current="$(mktemp /tmp/env-current.XXXXXX)"; changes="$(mktemp /tmp/env-changes.XXXXXX)"; replicas="$(mktemp /tmp/replicas.XXXXXX)"
+  versions="$(mktemp /tmp/versions.XXXXXX)"; services="$(mktemp /tmp/env-services.XXXXXX)"; TMP_FILES+=("$current" "$changes" "$replicas" "$versions" "$services")
+  build_env_state "$current"; env_changes "$current" > "$changes"
+  [ -s "$changes" ] || { log "Variables de .env sin cambios."; return; }
+  log "Cambios detectados en .env:"
+  while IFS='|' read -r type key; do log "  - $key ($type)"; while read -r svc; do [ -n "$svc" ] && log "      afecta: ${STACK_NAME}_$svc"; done < <(services_for_variable "$key" | sort -u); done < "$changes"
+  $DRY_RUN && { log "DRY-RUN: las variables no se aplicaron."; return; }
+  save_replicas "$replicas"; capture_versions > "$versions"
+  docker_cmd stack deploy --with-registry-auth -c "$COMPOSE_FILE" "$STACK_NAME" 2>&1 | tee -a "$LOG_FILE"
+  restore_replicas "$replicas"; changed_services_since "$versions" > "$services"
+  local env_updated=(); mapfile -t env_updated < "$services"
+  verify_or_rollback "${env_updated[@]}" || die "La actualizacion de .env fallo; se solicitaron rollbacks."
+  state_tmp="${ENV_STATE_FILE}.tmp.$$"; cp "$current" "$state_tmp"; chmod 600 "$state_tmp"; mv "$state_tmp" "$ENV_STATE_FILE"
+  UPDATED_SERVICES+=("${env_updated[@]}"); log "Variables aplicadas y verificadas."
+}
+read_service_images() {
+  awk '/^services:/ {inside=1; next} inside && /^[^ ]/ {inside=0} inside && /^  [[:alnum:]_.-]+:$/ {s=$1; sub(/:$/, "",s)} inside && /^    image:/ {i=$0; sub(/^ *image: */,"",i); sub(/ *#.*/,"",i); gsub(/["\047]/,"",i); print s "|" i}' "$COMPOSE_FILE"
+}
+image_digest() {
+  local image="$1" repo candidate; repo="${image%%@*}"; [[ "${repo##*/}" == *:* ]] && repo="${repo%:*}"
+  while read -r candidate; do case "$candidate" in "${repo}@"*) echo "${candidate##*@}"; return;; esac; done < <(docker_cmd image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image" 2>/dev/null || true); return 1
+}
+current_digest() { local ref; ref="$(docker_cmd service inspect --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' "$1" 2>/dev/null || true)"; [[ "$ref" == *@* ]] && echo "${ref##*@}"; }
+remote_digest() {
+  local image="$1" digest=""
+  if docker_cmd buildx version >/dev/null 2>&1; then
+    digest="$(docker_cmd buildx imagetools inspect "$image" 2>/dev/null | awk '/^Name:/ && /@sha256:/ {sub(/^.*@/, ""); print; exit}')"
   fi
-
-  digest="$(image_digest "$image" || true)"
   if [ -z "$digest" ]; then
-    log "ERROR: no se pudo obtener el digest local de $image."
-    PULL_FAILED["$image"]=1
-    continue
+    digest="$(docker_cmd manifest inspect --verbose "$image" 2>/dev/null | sed -n 's/.*"digest"[[:space:]]*:[[:space:]]*"\(sha256:[a-f0-9]*\)".*/\1/p' | head -n1)"
   fi
-  PULLED_DIGESTS["$image"]="$digest"
-done
+  [ -n "$digest" ] && echo "$digest"
+}
+sync_images() {
+  local mappings=() mapping image digest compose_service swarm_service old force_match; declare -A digests=() pull_failed=()
+  mapfile -t mappings < <(read_service_images)
+  for mapping in "${mappings[@]}"; do image="${mapping#*|}"; [ -n "${digests[$image]+x}" ] && continue
+    if $DRY_RUN; then
+      log "DRY-RUN: consultando $image sin descargarla"
+      digests["$image"]="$(remote_digest "$image" || true)"
+      [ -n "${digests[$image]}" ] || pull_failed["$image"]=1
+    else
+      log "Descargando $image"
+      if docker_cmd pull "$image" 2>&1 | tee -a "$LOG_FILE"; then digests["$image"]="$(image_digest "$image" || true)"; else pull_failed["$image"]=1; fi
+    fi
+  done
+  for mapping in "${mappings[@]}"; do compose_service="${mapping%%|*}"; image="${mapping#*|}"; swarm_service="${STACK_NAME}_${compose_service}"
+    if [ -n "${pull_failed[$image]+x}" ] || [ -z "${digests[$image]:-}" ]; then FAILED_SERVICES+=("$swarm_service"); continue; fi
+    digest="${digests[$image]}"; old="$(current_digest "$swarm_service")"
+    force_match=false
+    if [ "$FORCE_SERVICE" = "$compose_service" ] || [ "$FORCE_SERVICE" = "$swarm_service" ]; then force_match=true; fi
+    if [ "$old" = "$digest" ] && ! $force_match; then UNCHANGED_SERVICES+=("$swarm_service"); continue; fi
+    if $DRY_RUN; then log "DRY-RUN: actualizaria $swarm_service: ${old:-sin-digest} -> $digest"; continue; fi
+    log "Actualizando $swarm_service: ${old:-sin-digest} -> $digest"
+    if $force_match; then
+      docker_cmd service update --detach=true --force --with-registry-auth --image "${image%%@*}@${digest}" "$swarm_service" 2>&1 | tee -a "$LOG_FILE"
+    else
+      docker_cmd service update --detach=true --with-registry-auth --image "${image%%@*}@${digest}" "$swarm_service" 2>&1 | tee -a "$LOG_FILE"
+    fi
+    verify_or_rollback "$swarm_service" && UPDATED_SERVICES+=("$swarm_service")
+  done
+}
+show_status() { [ -f "$STATUS_FILE" ] && { echo "Ultima ejecucion:"; cat "$STATUS_FILE"; echo; }; stack_exists && docker_cmd stack services "$STACK_NAME" || echo "El stack $STACK_NAME no existe."; }
+prune_images() { [ "$PRUNE_OLD_IMAGES" = true ] || return; log "Limpiando imagenes no referenciadas anteriores a $PRUNE_UNTIL."; docker_cmd image prune -f --filter "until=${PRUNE_UNTIL}" 2>&1 | tee -a "$LOG_FILE"; }
 
-log "Comparando las imagenes descargadas con los servicios del stack..."
-for mapping in "${SERVICE_IMAGES[@]}"; do
-  compose_service="${mapping%%|*}"
-  image="${mapping#*|}"
-  swarm_service="${STACK_NAME}_${compose_service}"
-
-  if [ -n "${PULL_FAILED[$image]+x}" ]; then
-    FAILED_SERVICES+=("$swarm_service")
-    continue
-  fi
-
-  if ! docker_cmd service inspect "$swarm_service" >/dev/null 2>&1; then
-    log "ADVERTENCIA: $swarm_service no existe en el stack; se omite."
-    FAILED_SERVICES+=("$swarm_service")
-    continue
-  fi
-
-  new_digest="${PULLED_DIGESTS[$image]}"
-  old_digest="$(current_service_digest "$swarm_service")"
-  if [ -n "$old_digest" ] && [ "$old_digest" = "$new_digest" ]; then
-    log "Sin cambios: $swarm_service"
-    UNCHANGED_SERVICES+=("$swarm_service")
-    continue
-  fi
-
-  log "Actualizando $swarm_service: ${old_digest:-sin-digest} -> $new_digest"
-  if docker_cmd service update \
-    --with-registry-auth \
-    --image "${image%%@*}@${new_digest}" \
-    "$swarm_service" 2>&1 | tee -a "$LOG_FILE"; then
-    UPDATED_SERVICES+=("$swarm_service")
-  else
-    log "ERROR: fallo la actualizacion de $swarm_service."
-    FAILED_SERVICES+=("$swarm_service")
-  fi
-done
-
-log "Resumen: ${#UPDATED_SERVICES[@]} actualizado(s), ${#UNCHANGED_SERVICES[@]} sin cambios, ${#FAILED_SERVICES[@]} con error/omitido(s)."
-if [ "${#UPDATED_SERVICES[@]}" -gt 0 ]; then
-  log "Servicios actualizados: ${UPDATED_SERVICES[*]}"
+[ "$MODE" = status ] && { show_status; exit; }
+if ! stack_exists; then
+  $DRY_RUN && { log "DRY-RUN: se ejecutaria el primer despliegue."; exit; }
+  log "El stack no existe; ejecutando despliegue inicial."; (cd "$SCRIPT_DIR" && bash "$INITIAL_DEPLOY_SCRIPT") 2>&1 | tee -a "$LOG_FILE"
+  if load_env; then ensure_hash_key; tmp="$(mktemp /tmp/env-initial.XXXXXX)"; build_env_state "$tmp"; mv "$tmp" "$ENV_STATE_FILE"; fi
+  notify success "Primer despliegue completado."; exit
 fi
-if [ "${#FAILED_SERVICES[@]}" -gt 0 ]; then
-  log "Servicios con error u omitidos: ${FAILED_SERVICES[*]}"
-  exit 1
-fi
-
+is_manager || die "Este nodo no es manager del Swarm."
+[ "$MODE" = images ] || sync_env
+[ "$MODE" = env ] || sync_images
+prune_images
+[ "${#FAILED_SERVICES[@]}" -eq 0 ] || die "Servicios con error: ${FAILED_SERVICES[*]}"
+summary="${#UPDATED_SERVICES[@]} servicio(s) actualizado(s), ${#UNCHANGED_SERVICES[@]} sin cambios."
+log "$summary"; [ "${#UPDATED_SERVICES[@]}" -eq 0 ] || notify success "$summary Servicios: ${UPDATED_SERVICES[*]}"

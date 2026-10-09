@@ -1,0 +1,12 @@
+[Unit]
+Description=Comprobar actualizaciones del stack cada cinco minutos
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=15s
+Persistent=true
+Unit=update-images.service
+
+[Install]
+WantedBy=timers.target

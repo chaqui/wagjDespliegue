@@ -1,0 +1,19 @@
+[Unit]
+Description=Actualizar variables e imagenes del stack Docker Swarm
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/ruta/al/proyecto/despliegue-inventario
+EnvironmentFile=-/ruta/al/proyecto/despliegue-inventario/.env
+ExecStart=/ruta/al/proyecto/despliegue-inventario/update_images.sh
+TimeoutStartSec=30min
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=update-images
+
+[Install]
+WantedBy=multi-user.target

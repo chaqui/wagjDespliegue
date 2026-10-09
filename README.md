@@ -70,8 +70,10 @@ docker stack deploy --with-registry-auth -c docker-stack.yml sistema
 
 El script `update_images.sh` puede ejecutarse manualmente, desde cron o desde un
 timer de systemd. Si el stack todavia no existe, llama a `deploy_sequential.sh`
-para realizar el primer despliegue. Si ya existe, descarga todas las imagenes,
-compara sus digests y actualiza solamente los servicios que cambiaron:
+para realizar el primer despliegue. Si ya existe, revisa `.env` y aplica las
+variables nuevas, modificadas o eliminadas; despues descarga todas las imagenes,
+compara sus digests y actualiza solamente los servicios que cambiaron. El estado
+de `.env` se guarda como hashes en `.env.applied.sha256`, sin copiar secretos.
 
 ```bash
 chmod +x update_images.sh
@@ -79,14 +81,49 @@ chmod +x update_images.sh
 ```
 
 Variables opcionales: `STACK_NAME`, `COMPOSE_FILE`, `INITIAL_DEPLOY_SCRIPT`,
-`LOG_FILE` y `LOCK_FILE`. Para imagenes privadas, ejecute previamente
+`LOG_FILE`, `LOCK_FILE`, `ENV_FILE` y `ENV_STATE_FILE`. Para imagenes privadas, ejecute previamente
 `docker login ghcr.io` con una credencial que tenga permiso `read:packages`.
+
+El actualizador valida las variables obligatorias y `docker-stack.yml` antes de
+aplicar cambios, conserva el escalado actual, espera que las replicas queden
+saludables y solicita `docker service rollback` si una actualizacion falla. El
+estado de `.env` se escribe atomicamente y sus hashes usan una clave HMAC local.
+
+Modos disponibles:
+
+```bash
+./update_images.sh --dry-run          # informar sin cambiar servicios
+./update_images.sh --env-only         # solamente variables
+./update_images.sh --images-only      # solamente imagenes
+./update_images.sh --force catalogos  # forzar un servicio
+./update_images.sh --status           # ultimo resultado y estado Swarm
+```
+
+Las notificaciones se habilitan con `TELEGRAM_BOT_TOKEN` y
+`TELEGRAM_CHAT_ID`, o con `WEBHOOK_URL`. La limpieza de imagenes no
+referenciadas está desactivada por defecto; se habilita mediante
+`PRUNE_OLD_IMAGES=true` y respeta `PRUNE_UNTIL` (por defecto siete dias).
+
+`watch_and_deploy.sh` es ahora un envoltorio compatible que llama al mismo
+actualizador y muestra la cuenta regresiva en una sola linea; ya no elimina el
+stack.
 
 Ejemplo de cron cada cinco minutos (el bloqueo integrado evita ejecuciones
 simultaneas):
 
 ```cron
 */5 * * * * cd /ruta/despliegue-inventario && ./update_images.sh >> update-images-cron.log 2>&1
+```
+
+Para systemd se recomienda el timer incluido (edite primero las rutas de ambos
+archivos):
+
+```bash
+sudo cp update-images.service update-images.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now update-images.timer
+systemctl list-timers update-images.timer
+journalctl -u update-images.service -f
 ```
 
 El archivo conserva los valores de réplicas existentes: Traefik y los backends nuevos están inicialmente en `0`; actívelos cuando corresponda, por ejemplo:

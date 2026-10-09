@@ -1,0 +1,6 @@
+.env
+.env.applied.sha256
+.env.hash.key
+.digests/
+*.log
+deploy-status.json
