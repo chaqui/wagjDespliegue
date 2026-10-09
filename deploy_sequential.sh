@@ -259,7 +259,7 @@ for svc in $SERVICES; do
     desired_rep=1
     echo "$svc $desired_rep" >> "$MAPPING_FILE"
     log "Iniciando escala de $svc a 0 (antes $rep, se restaurará a $desired_rep)"
-    if $SUDO_PREFIX $DOCKER_CMD service update --replicas 0 "$svc" 2>&1 | tee -a "$LOG"; then
+    if $SUDO_PREFIX $DOCKER_CMD service update --detach=true --replicas 0 "$svc" 2>&1 | tee -a "$LOG"; then
       log "Escalado completado para $svc"
     else
       log "ADVERTENCIA: fallo al escalar $svc a 0"
@@ -288,7 +288,7 @@ if [ -z "$PEM_PATH" ]; then
 
   # Intentar forzar reinicio de tareas del servicio auth-service
   log "Intentando forzar reinicio del servicio ${MAIN_STACK}_auth-service (service update --force)"
-  if $SUDO_PREFIX $DOCKER_CMD service update --force ${MAIN_STACK}_auth-service 2>&1 | tee -a "$LOG"; then
+  if $SUDO_PREFIX $DOCKER_CMD service update --detach=true --force ${MAIN_STACK}_auth-service 2>&1 | tee -a "$LOG"; then
     log "Comando --force enviado. Esperando 10s para reinicio..."
     sleep 10
   else
@@ -368,7 +368,7 @@ while read -r line; do
   svc_name=$(echo "$line" | awk '{print $1}')
   svc_rep=$(echo "$line" | awk '{print $2}')
   log "Iniciando escala de $svc_name -> $svc_rep"
-  if $SUDO_PREFIX $DOCKER_CMD service update --replicas "$svc_rep" "$svc_name" 2>&1 | tee -a "$LOG"; then
+  if $SUDO_PREFIX $DOCKER_CMD service update --detach=true --replicas "$svc_rep" "$svc_name" 2>&1 | tee -a "$LOG"; then
     log "Escalado completado para $svc_name -> $svc_rep"
   else
     log "ERROR: fallo al escalar $svc_name a $svc_rep"
