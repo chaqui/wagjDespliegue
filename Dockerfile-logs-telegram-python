@@ -1,0 +1,11 @@
+FROM python:3.11-slim
+WORKDIR /app
+COPY monitor_logs_and_notify.py /app/monitor_logs_and_notify.py
+RUN pip install requests
+# Variables de entorno por defecto (pueden ser sobreescritas)
+ENV LOG_FILE=/var/log/syslog
+ENV TELEGRAM_BOT_TOKEN=""
+ENV TELEGRAM_CHAT_ID=""
+ENV SERVICE_NAME="watch-deploy"
+ENV CHECK_INTERVAL=1200
+CMD ["python", "/app/monitor_logs_and_notify.py"]

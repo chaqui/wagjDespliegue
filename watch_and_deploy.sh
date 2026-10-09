@@ -91,6 +91,18 @@ log() {
   echo "[$(date +"%Y-%m-%d %H:%M:%S")] $*" | tee -a "$LOG"
 }
 
+# Muestra la espera en una unica linea para no llenar la terminal ni el log.
+# Al terminar, borra la linea antes de ejecutar la siguiente comprobacion.
+countdown_to_next_check() {
+  local remaining="$1"
+  while [ "$remaining" -gt 0 ]; do
+    printf '\rPróxima comprobación en %3d segundos...\033[K' "$remaining"
+    sleep 1
+    remaining=$((remaining - 1))
+  done
+  printf '\r\033[K'
+}
+
 die() {
   log "ERROR: $*"
   exit 1
@@ -356,13 +368,9 @@ run_cycle() {
 
   # ── PASO 2: Polling hasta detectar cambio ───────────────────────────────
   log "[ 2/4 ] Vigilando cambios (cada ${POLL_INTERVAL}s). Ctrl+C para detener."
-  local attempt=0 changed_image="" new_digest="" old_digest=""
-  local start_time=$SECONDS
+  local changed_image="" new_digest="" old_digest=""
 
   while true; do
-    attempt=$((attempt + 1))
-    local elapsed=$(( SECONDS - start_time ))
-
     for img in "${IMAGES[@]}"; do
       local key current_digest known_digest
       key="$(image_to_key "$img")"
@@ -381,8 +389,7 @@ run_cycle() {
       fi
     done
 
-    log "[#${attempt} | ${elapsed}s] Sin cambios detectados. Próxima revisión en ${POLL_INTERVAL}s…"
-    sleep "$POLL_INTERVAL"
+    countdown_to_next_check "$POLL_INTERVAL"
   done
 
   log "[ 2/4 ] ¡Cambio detectado!"

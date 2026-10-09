@@ -1,0 +1,5 @@
+CREATE SCHEMA IF NOT EXISTS LosMolinosStore;
+CREATE SCHEMA IF NOT EXISTS CrecilandiaStore;
+
+CREATE SCHEMA IF NOT EXISTS LosMolinosRestaurante;
+CREATE SCHEMA IF NOT EXISTS CrecilandiaRestaurante;

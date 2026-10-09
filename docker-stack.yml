@@ -1,98 +1,90 @@
 x-logging: &default-logging
   driver: json-file
-  options:
-    max-size: "10m"
-    max-file: "3"
+  options: {max-size: "10m", max-file: "3"}
 
 x-deploy-defaults: &deploy-defaults
-  update_config:
-    parallelism: 1
-    delay: 10s
-    failure_action: rollback
-    monitor: 30s
-    order: start-first
-  restart_policy:
-    condition: on-failure
-    delay: 5s
-    max_attempts: 3
-    window: 120s
+  update_config: {parallelism: 1, delay: 10s, failure_action: rollback, monitor: 30s, order: start-first}
+  restart_policy: {condition: on-failure, delay: 5s, max_attempts: 3, window: 120s}
 
-# ============================================================
-# SERVICIOS
-# ============================================================
+x-backend-environment: &backend-environment
+  SPRING_PROFILES_ACTIVE: postgres
+  DB_URL: ${DB_URL}
+  DB_USER: ${DB_USERNAME}
+  DB_PASSWORD: ${DB_PASSWORD}
+  JWT_SECRET: ${JWT_SECRET}
+  JAVA_OPTS: -Xms64m -Xmx128m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
+  SERVER_FORWARD_HEADERS_STRATEGY: FRAMEWORK
+  LOGGING_LEVEL_ROOT: INFO
+  LOGGING_LEVEL_ORG_SPRINGFRAMEWORK: INFO
+  LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY: DEBUG
+  LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: DEBUG
+  LOGGING_LEVEL_ORG_HIBERNATE_SQL: DEBUG
+  LOGGING_LEVEL_ORG_HIBERNATE_TYPE_DESCRIPTOR_SQL: TRACE
+  SPRING_JPA_SHOW_SQL: "true"
+  SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: "true"
+  AUTH_SERVICE_URL: http://auth-service:8082
+
+x-frontend-environment: &frontend-environment
+  NODE_ENV: production
+  ORIGIN: https://grupowagj.duckdns.org
+  API_AUTH_URL: https://grupowagj.duckdns.org/usuarios-api/api
+  AUTH_LOGIN: https://grupowagj.duckdns.org/usuarios/login
+  URL_CATALOGO: https://grupowagj.duckdns.org/catalogos
+  SSR_API_AUTH_URL: http://auth-service:8082
+  LOG_LEVEL: info
+  LOG_FORMAT: json
+  ENABLE_SSR: "false"
+  CACHE_TTL: "3600"
+  SSR_USE_INTERNAL_URLS: "true"
+
 services:
-
-  # ──────────────────────────────────────────────────────────
-  # TRAEFIK - Proxy Inverso / API Gateway
-  # Dashboard: https://repuestoshernandez.duckdns.org/traefik/dashboard/
-  # ──────────────────────────────────────────────────────────
   traefik:
     image: traefik:v2.11
     command:
-      - "--api.dashboard=true"
-      - "--api.insecure=false"
-      - "--providers.docker=true"
-      - "--providers.docker.swarmMode=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=sistema_public-net"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--entrypoints.web.forwardedHeaders.insecure=true"
-      - "--entrypoints.websecure.forwardedHeaders.insecure=true"
-      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/certificates/acme.json"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-      - "--log.level=INFO"
-      - "--accesslog=true"
+      - --api.dashboard=true
+      - --api.insecure=false
+      - --providers.docker=true
+      - --providers.docker.swarmMode=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=sistema_public-net
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.forwardedHeaders.insecure=true
+      - --entrypoints.websecure.forwardedHeaders.insecure=true
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/certificates/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --log.level=INFO
+      - --accesslog=true
     environment:
       - DOCKER_API_VERSION=${DOCKER_API_VERSION}
     ports:
-      - target: 80
-        published: 80
-        protocol: tcp
-        mode: ingress
-      - target: 443
-        published: 443
-        protocol: tcp
-        mode: ingress
+      - {target: 80, published: 80, protocol: tcp, mode: ingress}
+      - {target: 443, published: 443, protocol: tcp, mode: ingress}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik-certificates:/certificates
-    networks:
-      - public-net
+    networks: [public-net]
     deploy:
       <<: *deploy-defaults
       replicas: 0
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
+      resources: {limits: {cpus: "0.5", memory: 80M}}
       labels:
-        - "traefik.enable=true"
-        # Dashboard — generar hash: echo $(htpasswd -nb admin pass) | sed -e s/\\$/\\$\\$/g
-        # Dashboard accesible en: https://repuestoshernandez.duckdns.org/traefik/dashboard/
-        - "traefik.http.routers.dashboard.rule=Host(`repuestoshernandez.duckdns.org`) && (PathPrefix(`/traefik/api`) || PathPrefix(`/traefik/dashboard`))"
-        - "traefik.http.routers.dashboard.entrypoints=websecure"
-        - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.dashboard.service=api@internal"
-        - "traefik.http.routers.dashboard.middlewares=auth-basic,strip-traefik"
-        - "traefik.http.middlewares.strip-traefik.stripprefix.prefixes=/traefik"
-        # Hash generado con: echo $(htpasswd -nb admin TuPassword) | sed -e 's/\$/\$\$/g'
-        - "traefik.http.middlewares.auth-basic.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}"
-        # Puerto explícito para evitar el error "port is missing" al auto-descubrirse
-        - "traefik.http.services.traefik.loadbalancer.server.port=80"
-        # Rate limiting global
-        - "traefik.http.middlewares.rate-limit.ratelimit.average=100"
-        - "traefik.http.middlewares.rate-limit.ratelimit.burst=50"
+        - traefik.enable=true
+        - "traefik.http.routers.dashboard.rule=Host(`grupowagj.duckdns.org`) && (PathPrefix(`/traefik/api`) || PathPrefix(`/traefik/dashboard`))"
+        - traefik.http.routers.dashboard.entrypoints=websecure
+        - traefik.http.routers.dashboard.tls.certresolver=letsencrypt
+        - traefik.http.routers.dashboard.service=api@internal
+        - traefik.http.routers.dashboard.middlewares=auth-basic,strip-traefik
+        - traefik.http.middlewares.strip-traefik.stripprefix.prefixes=/traefik
+        - traefik.http.middlewares.auth-basic.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}
+        - traefik.http.services.traefik.loadbalancer.server.port=80
+        - traefik.http.middlewares.rate-limit.ratelimit.average=100
+        - traefik.http.middlewares.rate-limit.ratelimit.burst=50
     logging: *default-logging
 
-  # ──────────────────────────────────────────────────────────
-  # AUTH SERVICE - Backend de gestión de usuarios
-  # Imagen:   ghcr.io/chaqui/auth-service:latest
-  # Ruta:     https://repuestoshernandez.duckdns.org/auth → :8082
-  # ──────────────────────────────────────────────────────────
   auth-service:
     image: ghcr.io/chaqui/auth-service:latest
     environment:
@@ -101,236 +93,341 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_SCHEMA=${DB_SCHEMA}
       - JWT_SECRET=${JWT_SECRET}
-      - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
+      - JAVA_OPTS=-Xms64m -Xmx128m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
       - SERVER_FORWARD_HEADERS_STRATEGY=FRAMEWORK
       - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=DEBUG
     volumes:
-      - type: bind
-        source: ./keys
-        target: /app/keys
-      - type: bind
-        source: ./logs/auth
-        target: /app/logs
-      - type: bind
-        source: ./certs
-        target: /app/certs
-        read_only: true
-      # Carpeta con llave pública para compartir con otros servicios
-      - type: bind
-        source: ./pubkeys
-        target: /app/keys/public
-    networks:
-      - public-net
+      - {type: bind, source: ./keys, target: /app/keys}
+      - {type: bind, source: ./logs/auth, target: /app/logs}
+      - {type: bind, source: ./certs, target: /app/certs, read_only: true}
+      - {type: bind, source: ./pubkeys, target: /app/keys/public}
+    networks: [public-net]
     deploy:
       replicas: 1
-      placement:
-        preferences:
-          - spread: node.id
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
+      placement: {preferences: [{spread: node.id}]}
+      resources: {limits: {cpus: "1", memory: 192M}}
       labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.auth.rule=Host(`repuestoshernandez.duckdns.org`) && PathPrefix(`/usuarios-api`)"
-        - "traefik.http.routers.auth.entrypoints=websecure"
-        - "traefik.http.routers.auth.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.auth.middlewares=rate-limit,strip-auth"
-        - "traefik.http.middlewares.strip-auth.stripprefix.prefixes=/usuarios-api"
-        - "traefik.http.middlewares.auth-rewrite.replacepathregex.regex=^/usuarios-api/(.*)"
-        - "traefik.http.middlewares.auth-rewrite.replacepathregex.replacement=/api/$${1}"
-        - "traefik.http.services.auth.loadbalancer.server.port=8082"
-        # Sticky sessions: misma réplica para la misma sesión
-        - "traefik.http.services.auth.loadbalancer.sticky.cookie=true"
-        - "traefik.http.services.auth.loadbalancer.sticky.cookie.name=auth_session"
-        - "traefik.http.services.auth.loadbalancer.sticky.cookie.secure=true"
+        - traefik.enable=true
+        - "traefik.http.routers.auth.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/usuarios-api`)"
+        - traefik.http.routers.auth.entrypoints=websecure
+        - traefik.http.routers.auth.tls.certresolver=letsencrypt
+        - traefik.http.routers.auth.middlewares=rate-limit,strip-auth
+        - traefik.http.middlewares.strip-auth.stripprefix.prefixes=/usuarios-api
+        - traefik.http.middlewares.auth-rewrite.replacepathregex.regex=^/usuarios-api/(.*)
+        - traefik.http.middlewares.auth-rewrite.replacepathregex.replacement=/api/$${1}
+        - traefik.http.services.auth.loadbalancer.server.port=8082
+        - traefik.http.services.auth.loadbalancer.sticky.cookie=true
+        - traefik.http.services.auth.loadbalancer.sticky.cookie.name=auth_session
+        - traefik.http.services.auth.loadbalancer.sticky.cookie.secure=true
     healthcheck:
-      test: ["CMD-SHELL", "test -r /app/keys/public_key.pem && test -s /app/keys/public_key.pem || exit 1"]
+      test: [CMD-SHELL, "test -r /app/keys/public_key.pem && test -s /app/keys/public_key.pem || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
     logging: *default-logging
 
-  # ──────────────────────────────────────────────────────────
-  # FRONTEND USUARIOS - UI de gestión de usuarios
-  # Imagen:   ghcr.io/chaqui/frontend-usuarios:latest
-  # Ruta:     https://repuestoshernandez.duckdns.org/usuarios → :80
-  # ──────────────────────────────────────────────────────────
   frontend-usuarios:
-    image:  ghcr.io/chaqui/frontend-usuarios:main
+    image: ghcr.io/chaqui/frontend-usuarios:main
     environment:
-      - API_URL=https://repuestoshernandez.duckdns.org/usuarios-api/api
-    networks:
-      - public-net
+      - API_URL=https://grupowagj.duckdns.org/usuarios-api/api
+    networks: [public-net]
     deploy:
       <<: *deploy-defaults
       replicas: 0
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
+      resources: {limits: {cpus: "0.5", memory: 64M}}
       labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.frontend-usuarios.rule=Host(`repuestoshernandez.duckdns.org`) && (PathPrefix(`/usuarios`) || Path(`/`))"
-        - "traefik.http.routers.frontend-usuarios.entrypoints=websecure"
-        - "traefik.http.routers.frontend-usuarios.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.frontend-usuarios.middlewares=rate-limit,usuarios-strip"
-        - "traefik.http.routers.frontend-usuarios.tls=true"
-        - "traefik.http.routers.frontend-usuarios.priority=10"
-        - "traefik.http.middlewares.usuarios-strip.stripprefix.prefixes=/usuarios"
-        - "traefik.http.services.frontend-usuarios.loadbalancer.server.port=80"
+        - traefik.enable=true
+        - "traefik.http.routers.frontend-usuarios.rule=Host(`grupowagj.duckdns.org`) && (PathPrefix(`/usuarios`) || Path(`/`))"
+        - traefik.http.routers.frontend-usuarios.entrypoints=websecure
+        - traefik.http.routers.frontend-usuarios.tls.certresolver=letsencrypt
+        - traefik.http.routers.frontend-usuarios.middlewares=rate-limit,usuarios-strip
+        - traefik.http.routers.frontend-usuarios.tls=true
+        - traefik.http.routers.frontend-usuarios.priority=10
+        - traefik.http.middlewares.usuarios-strip.stripprefix.prefixes=/usuarios
+        - traefik.http.services.frontend-usuarios.loadbalancer.server.port=80
     logging: *default-logging
 
-  # ──────────────────────────────────────────────────────────
-  # INVENTARIO BACKEND - Backend core
-  # Imagen:   ghcr.io/chaqui/inventario:latest
-  # Ruta:     https://repuestoshernandez.duckdns.org/api → :8080
-  # ─────────────────────────────────────────────── ───────────
-  inventario-backend:
-    image: ghcr.io/chaqui/inventario:main
+  losmolinos-store-backend:
+    image: ghcr.io/chaqui/inventario-backend-wagj:main
     environment:
-      # Perfil Spring Boot (postgres activa la configuración PostgreSQL)
-      - SPRING_PROFILES_ACTIVE=postgres
-      # Base de datos PostgreSQL (RDS / externo)
-      - DB_URL=${DB_URL}
-      - DB_USER=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_SCHEMA=${DB_SCHEMA_INVENTARIO}
-      # Seguridad
-      - JWT_SECRET=${JWT_SECRET}
-      # JVM tuning
-      - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
-      # Cabeceras de proxy (Traefik → Spring Security reconoce HTTPS/forwarded)
-      - SERVER_FORWARD_HEADERS_STRATEGY=FRAMEWORK
-      # Logging detallado
-      - LOGGING_LEVEL_ROOT=INFO
-      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK=INFO
-      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=DEBUG
-      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB=DEBUG
-      - LOGGING_LEVEL_ORG_HIBERNATE_SQL=DEBUG
-      - LOGGING_LEVEL_ORG_HIBERNATE_TYPE_DESCRIPTOR_SQL=TRACE
-      - SPRING_JPA_SHOW_SQL=true
-      - SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL=true
-      # Integración interna
-      - AUTH_SERVICE_URL=http://auth-service:8082
-      - SERVICE_NAME=inventario-backend
-      - SERVICE_PORT=8080
-      - SERVICE_URL=http://inventario-backend:8080
+      <<: *backend-environment
+      DB_SCHEMA: LosMolinosStore
+      SERVER_PORT: "8101"
+      SERVICE_PORT: "8101"
+      SERVICE_NAME: losmolinos-store-backend
+      SERVICE_URL: http://losmolinos-store-backend:8101
     volumes:
-      - inventario-uploads:/app/uploads
-      - inventario-logs:/var/log/inventario
-      - type: bind
-        source: ./certs
-        target: /app/certs
-        read_only: true
-      - type: bind
-        source: ./keys
-        target: /app/keys
-      - type: bind
-        source: ./logs/inventario-backend
-        target: /app/logs
-      # Carpeta con llave pública para compartir con otros servicios
-      - type: bind
-        source: ./pubkeys
-        target: /app/keys/public
-        read_only: true
-      - type: bind
-        source: ./data/inventario
-        target: /uploads
-      
-    networks:
-      - public-net
+      - losmolinos-store-uploads:/app/uploads
+      - losmolinos-store-logs:/var/log/inventario
+      - {type: bind, source: ./certs, target: /app/certs, read_only: true}
+      - {type: bind, source: ./keys, target: /app/keys}
+      - {type: bind, source: ./logs/losmolinos-store-backend, target: /app/logs}
+      - {type: bind, source: ./pubkeys, target: /app/keys/public, read_only: true}
+      - {type: bind, source: ./data/losmolinos-store, target: /uploads}
+    networks: [public-net]
     deploy:
       <<: *deploy-defaults
       replicas: 0
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
+      resources: {limits: {cpus: "1", memory: 184M}}
       labels:
-        - "traefik.enable=true"
-        # ── Router REST API ──────────────────────────────────────
-        - "traefik.http.routers.inventario-api.rule=Host(`repuestoshernandez.duckdns.org`) && PathPrefix(`/inventario-api`)"
-        - "traefik.http.routers.inventario-api.entrypoints=websecure"
-        - "traefik.http.routers.inventario-api.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.inventario-api.middlewares=rate-limit,strip-inventario-api"
-        - "traefik.http.routers.inventario-api.priority=1"
-        - "traefik.http.routers.inventario-api.service=inventario-api"
-        # ── Router WebSocket / SockJS (prioridad mayor, sin rate-limit) ──
-        - "traefik.http.routers.inventario-ws.rule=Host(`repuestoshernandez.duckdns.org`) && PathPrefix(`/inventario-api/ws-inventario`)"
-        - "traefik.http.routers.inventario-ws.entrypoints=websecure"
-        - "traefik.http.routers.inventario-ws.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.inventario-ws.middlewares=strip-inventario-api"
-        - "traefik.http.routers.inventario-ws.priority=10"
-        - "traefik.http.routers.inventario-ws.service=inventario-api"
-        # ── Middleware path rewrite (compartido) ─────────────────
-        - "traefik.http.middlewares.strip-inventario-api.replacepathregex.regex=^/inventario-api(.*)"
-        - "traefik.http.middlewares.strip-inventario-api.replacepathregex.replacement=$${1}"
-        # ── Servicio backend ─────────────────────────────────────
-        - "traefik.http.services.inventario-api.loadbalancer.server.port=8085"
-        # Sticky sessions: misma réplica para la misma sesión (importante para WebSocket)
-        - "traefik.http.services.inventario-api.loadbalancer.sticky.cookie=true"
-        - "traefik.http.services.inventario-api.loadbalancer.sticky.cookie.name=auth_session"
-        - "traefik.http.services.inventario-api.loadbalancer.sticky.cookie.secure=true"
+        - traefik.enable=true
+        - "traefik.http.routers.losmolinos-store-api.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/store-api`)"
+        - traefik.http.routers.losmolinos-store-api.entrypoints=websecure
+        - traefik.http.routers.losmolinos-store-api.tls.certresolver=letsencrypt
+        - traefik.http.routers.losmolinos-store-api.middlewares=rate-limit,strip-losmolinos-store-api
+        - traefik.http.routers.losmolinos-store-api.priority=20
+        - traefik.http.routers.losmolinos-store-api.service=losmolinos-store-api
+        - "traefik.http.routers.losmolinos-store-ws.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/store-api/ws-inventario`)"
+        - traefik.http.routers.losmolinos-store-ws.entrypoints=websecure
+        - traefik.http.routers.losmolinos-store-ws.tls.certresolver=letsencrypt
+        - traefik.http.routers.losmolinos-store-ws.middlewares=strip-losmolinos-store-api
+        - traefik.http.routers.losmolinos-store-ws.priority=100
+        - traefik.http.routers.losmolinos-store-ws.service=losmolinos-store-api
+        - traefik.http.middlewares.strip-losmolinos-store-api.replacepathregex.regex=^/losmolinos/store-api(.*)
+        - traefik.http.middlewares.strip-losmolinos-store-api.replacepathregex.replacement=$${1}
+        - traefik.http.services.losmolinos-store-api.loadbalancer.server.port=8101
+        - traefik.http.services.losmolinos-store-api.loadbalancer.sticky.cookie=true
+        - traefik.http.services.losmolinos-store-api.loadbalancer.sticky.cookie.name=losmolinos_store_session
+        - traefik.http.services.losmolinos-store-api.loadbalancer.sticky.cookie.secure=true
     logging: *default-logging
 
-  # ──────────────────────────────────────────────────────────
-  # FRONTEND INVENTARIO - Frontend principal (core)
-  # Imagen:   ghcr.io/chaqui/inventario-frontend:main
-  # Ruta:     https://repuestoshernandez.duckdns.org/ → :3000
-  # ──────────────────────────────────────────────────────────
-  frontend-inventario:
-    image:   ghcr.io/chaqui/inventario-frontend:main
+  losmolinos-store-frontend:
+    image: ghcr.io/chaqui/inventario-frontend-wagj:main
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - ORIGIN=https://repuestoshernandez.duckdns.org
-      - APP_BASE_HREF=/inventario/
-      # URLs públicas para el browser (client-side)
-      - API_URL=https://repuestoshernandez.duckdns.org/inventario-api
-      - API_AUTH_URL=https://repuestoshernandez.duckdns.org/usuarios-api/api
-      - AUTH_LOGIN=https://repuestoshernandez.duckdns.org/usuarios/login
-      - WS_URL=https://repuestoshernandez.duckdns.org/inventario-api/ws-inventario
-      - URL_CATALOGO=https://repuestoshernandez.duckdns.org/catalogos
-      # URLs internas para SSR (evitan el bloqueo SSRF de Angular 19+)
-      - SSR_API_URL=http://inventario-backend:8080
-      - SSR_API_AUTH_URL=http://auth-service:8082
-      - LOG_LEVEL=info
-      - LOG_FORMAT=json
-      - ENABLE_SSR=false
-      - CACHE_TTL=3600
-      - SSR_USE_INTERNAL_URLS=true
-
-    volumes:
-      - inventario-frontend-data:/app/data
-      - /etc/timezone:/etc/timezone:ro
-    networks:
-      - public-net
+      <<: *frontend-environment
+      PORT: "3101"
+      SERVER_PORT: "3101"
+      SERVICE_PORT: "3101"
+      APP_BASE_HREF: /losmolinos/store/
+      API_URL: https://grupowagj.duckdns.org/losmolinos/store-api
+      WS_URL: https://grupowagj.duckdns.org/losmolinos/store-api/ws-inventario
+      SSR_API_URL: http://losmolinos-store-backend:8101
+    volumes: [losmolinos-store-frontend-data:/app/data, /etc/timezone:/etc/timezone:ro]
+    networks: [public-net]
     deploy:
       <<: *deploy-defaults
       replicas: 1
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
+      resources: {limits: {cpus: "1", memory: 72M}}
       labels:
-        - "traefik.enable=true"
-        # Router principal: sirve el frontend bajo /inventario, stripping el prefijo antes de pasar al SSR
-        - "traefik.http.routers.frontend-core.rule=Host(`repuestoshernandez.duckdns.org`) && (PathPrefix(`/inventario`))"
-        - "traefik.http.routers.frontend-core.entrypoints=websecure"
-        - "traefik.http.routers.frontend-core.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.frontend-core.middlewares=rate-limit,strip-inventario"
-        - "traefik.http.routers.frontend-core.priority=1"
-        - "traefik.http.middlewares.strip-inventario.stripprefix.prefixes=/inventario"
-        - "traefik.http.services.frontend-core.loadbalancer.server.port=3000"
+        - traefik.enable=true
+        - "traefik.http.routers.losmolinos-store.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/store`)"
+        - traefik.http.routers.losmolinos-store.entrypoints=websecure
+        - traefik.http.routers.losmolinos-store.tls.certresolver=letsencrypt
+        - traefik.http.routers.losmolinos-store.middlewares=rate-limit,strip-losmolinos-store
+        - traefik.http.routers.losmolinos-store.priority=10
+        - traefik.http.routers.losmolinos-store.service=losmolinos-store-frontend
+        - traefik.http.middlewares.strip-losmolinos-store.stripprefix.prefixes=/losmolinos/store
+        - traefik.http.services.losmolinos-store-frontend.loadbalancer.server.port=3101
     logging: *default-logging
 
-  # ──────────────────────────────────────────────────────────
-  # CATÁLOGOS BACKEND
-  # Imagen:   ghcr.io/chaqui/catalogos:main
-  # Ruta:     https://repuestoshernandez.duckdns.org/catalogos → :3001
-  # ──────────────────────────────────────────────────────────
+  crecilandia-store-backend:
+    image: ghcr.io/chaqui/inventario-backend-wagj:main
+    environment:
+      <<: *backend-environment
+      DB_SCHEMA: CrecilandiaStore
+      SERVER_PORT: "8102"
+      SERVICE_PORT: "8102"
+      SERVICE_NAME: crecilandia-store-backend
+      SERVICE_URL: http://crecilandia-store-backend:8102
+    volumes:
+      - crecilandia-store-uploads:/app/uploads
+      - crecilandia-store-logs:/var/log/inventario
+      - {type: bind, source: ./certs, target: /app/certs, read_only: true}
+      - {type: bind, source: ./keys, target: /app/keys}
+      - {type: bind, source: ./logs/crecilandia-store-backend, target: /app/logs}
+      - {type: bind, source: ./pubkeys, target: /app/keys/public, read_only: true}
+      - {type: bind, source: ./data/crecilandia-store, target: /uploads}
+    networks: [public-net]
+    deploy:
+      <<: *deploy-defaults
+      replicas: 0
+      resources: {limits: {cpus: "1", memory: 184M}}
+      labels:
+        - traefik.enable=true
+        - "traefik.http.routers.crecilandia-store-api.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/store-api`)"
+        - traefik.http.routers.crecilandia-store-api.entrypoints=websecure
+        - traefik.http.routers.crecilandia-store-api.tls.certresolver=letsencrypt
+        - traefik.http.routers.crecilandia-store-api.middlewares=rate-limit,strip-crecilandia-store-api
+        - traefik.http.routers.crecilandia-store-api.priority=20
+        - traefik.http.routers.crecilandia-store-api.service=crecilandia-store-api
+        - "traefik.http.routers.crecilandia-store-ws.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/store-api/ws-inventario`)"
+        - traefik.http.routers.crecilandia-store-ws.entrypoints=websecure
+        - traefik.http.routers.crecilandia-store-ws.tls.certresolver=letsencrypt
+        - traefik.http.routers.crecilandia-store-ws.middlewares=strip-crecilandia-store-api
+        - traefik.http.routers.crecilandia-store-ws.priority=100
+        - traefik.http.routers.crecilandia-store-ws.service=crecilandia-store-api
+        - traefik.http.middlewares.strip-crecilandia-store-api.replacepathregex.regex=^/crecilandia/store-api(.*)
+        - traefik.http.middlewares.strip-crecilandia-store-api.replacepathregex.replacement=$${1}
+        - traefik.http.services.crecilandia-store-api.loadbalancer.server.port=8102
+        - traefik.http.services.crecilandia-store-api.loadbalancer.sticky.cookie=true
+        - traefik.http.services.crecilandia-store-api.loadbalancer.sticky.cookie.name=crecilandia_store_session
+        - traefik.http.services.crecilandia-store-api.loadbalancer.sticky.cookie.secure=true
+    logging: *default-logging
+
+  crecilandia-store-frontend:
+    image: ghcr.io/chaqui/inventario-frontend-wagj:main
+    environment:
+      <<: *frontend-environment
+      PORT: "3102"
+      SERVER_PORT: "3102"
+      SERVICE_PORT: "3102"
+      APP_BASE_HREF: /crecilandia/store/
+      API_URL: https://grupowagj.duckdns.org/crecilandia/store-api
+      WS_URL: https://grupowagj.duckdns.org/crecilandia/store-api/ws-inventario
+      SSR_API_URL: http://crecilandia-store-backend:8102
+    volumes: [crecilandia-store-frontend-data:/app/data, /etc/timezone:/etc/timezone:ro]
+    networks: [public-net]
+    deploy:
+      <<: *deploy-defaults
+      replicas: 1
+      resources: {limits: {cpus: "1", memory: 72M}}
+      labels:
+        - traefik.enable=true
+        - "traefik.http.routers.crecilandia-store.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/store`)"
+        - traefik.http.routers.crecilandia-store.entrypoints=websecure
+        - traefik.http.routers.crecilandia-store.tls.certresolver=letsencrypt
+        - traefik.http.routers.crecilandia-store.middlewares=rate-limit,strip-crecilandia-store
+        - traefik.http.routers.crecilandia-store.priority=10
+        - traefik.http.routers.crecilandia-store.service=crecilandia-store-frontend
+        - traefik.http.middlewares.strip-crecilandia-store.stripprefix.prefixes=/crecilandia/store
+        - traefik.http.services.crecilandia-store-frontend.loadbalancer.server.port=3102
+    logging: *default-logging
+
+  losmolinos-restaurante-backend:
+    image: ghcr.io/chaqui/inventario-backend-wagj:main-1284a0a
+    environment:
+      <<: *backend-environment
+      DB_SCHEMA: LosMolinosRestaurante
+      SERVER_PORT: "8103"
+      SERVICE_PORT: "8103"
+      SERVICE_NAME: losmolinos-restaurante-backend
+      SERVICE_URL: http://losmolinos-restaurante-backend:8103
+    volumes:
+      - losmolinos-restaurante-uploads:/app/uploads
+      - losmolinos-restaurante-logs:/var/log/inventario
+      - {type: bind, source: ./certs, target: /app/certs, read_only: true}
+      - {type: bind, source: ./keys, target: /app/keys}
+      - {type: bind, source: ./logs/losmolinos-restaurante-backend, target: /app/logs}
+      - {type: bind, source: ./pubkeys, target: /app/keys/public, read_only: true}
+      - {type: bind, source: ./data/losmolinos-restaurante, target: /uploads}
+    networks: [public-net]
+    deploy:
+      <<: *deploy-defaults
+      replicas: 0
+      resources: {limits: {cpus: "1", memory: 184M}}
+      labels:
+        - traefik.enable=true
+        - "traefik.http.routers.losmolinos-restaurante-api.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/restaurante-api`)"
+        - traefik.http.routers.losmolinos-restaurante-api.entrypoints=websecure
+        - traefik.http.routers.losmolinos-restaurante-api.tls.certresolver=letsencrypt
+        - traefik.http.routers.losmolinos-restaurante-api.middlewares=rate-limit,strip-losmolinos-restaurante-api
+        - traefik.http.routers.losmolinos-restaurante-api.priority=20
+        - traefik.http.routers.losmolinos-restaurante-api.service=losmolinos-restaurante-api
+        - traefik.http.middlewares.strip-losmolinos-restaurante-api.replacepathregex.regex=^/losmolinos/restaurante-api(.*)
+        - traefik.http.middlewares.strip-losmolinos-restaurante-api.replacepathregex.replacement=$${1}
+        - traefik.http.services.losmolinos-restaurante-api.loadbalancer.server.port=8103
+        - traefik.http.services.losmolinos-restaurante-api.loadbalancer.sticky.cookie=true
+        - traefik.http.services.losmolinos-restaurante-api.loadbalancer.sticky.cookie.name=losmolinos_restaurante_session
+        - traefik.http.services.losmolinos-restaurante-api.loadbalancer.sticky.cookie.secure=true
+    logging: *default-logging
+
+  losmolinos-restaurante-frontend:
+    image: ghcr.io/chaqui/fronted-restaurante:main
+    environment:
+      <<: *frontend-environment
+      PORT: "3103"
+      SERVER_PORT: "3103"
+      SERVICE_PORT: "3103"
+      APP_BASE_HREF: /losmolinos/restaurante/
+      API_URL: https://grupowagj.duckdns.org/losmolinos/restaurante-api
+      WS_URL: https://grupowagj.duckdns.org/losmolinos/restaurante-api/ws-inventario
+      SSR_API_URL: http://losmolinos-restaurante-backend:8103
+    volumes: [losmolinos-restaurante-frontend-data:/app/data, /etc/timezone:/etc/timezone:ro]
+    networks: [public-net]
+    deploy:
+      <<: *deploy-defaults
+      replicas: 1
+      resources: {limits: {cpus: "1", memory: 72M}}
+      labels:
+        - traefik.enable=true
+        - "traefik.http.routers.losmolinos-restaurante.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/restaurante`)"
+        - traefik.http.routers.losmolinos-restaurante.entrypoints=websecure
+        - traefik.http.routers.losmolinos-restaurante.tls.certresolver=letsencrypt
+        - traefik.http.routers.losmolinos-restaurante.middlewares=rate-limit,strip-losmolinos-restaurante
+        - traefik.http.routers.losmolinos-restaurante.priority=10
+        - traefik.http.routers.losmolinos-restaurante.service=losmolinos-restaurante-frontend
+        - traefik.http.middlewares.strip-losmolinos-restaurante.stripprefix.prefixes=/losmolinos/restaurante
+        - traefik.http.services.losmolinos-restaurante-frontend.loadbalancer.server.port=3103
+    logging: *default-logging
+
+  crecilandia-restaurante-backend:
+    image: ghcr.io/chaqui/inventario-backend-wagj:main-1284a0a
+    environment:
+      <<: *backend-environment
+      DB_SCHEMA: CrecilandiaRestaurante
+      SERVER_PORT: "8104"
+      SERVICE_PORT: "8104"
+      SERVICE_NAME: crecilandia-restaurante-backend
+      SERVICE_URL: http://crecilandia-restaurante-backend:8104
+    volumes:
+      - crecilandia-restaurante-uploads:/app/uploads
+      - crecilandia-restaurante-logs:/var/log/inventario
+      - {type: bind, source: ./certs, target: /app/certs, read_only: true}
+      - {type: bind, source: ./keys, target: /app/keys}
+      - {type: bind, source: ./logs/crecilandia-restaurante-backend, target: /app/logs}
+      - {type: bind, source: ./pubkeys, target: /app/keys/public, read_only: true}
+      - {type: bind, source: ./data/crecilandia-restaurante, target: /uploads}
+    networks: [public-net]
+    deploy:
+      <<: *deploy-defaults
+      replicas: 0
+      resources: {limits: {cpus: "1", memory: 184M}}
+      labels:
+        - traefik.enable=true
+        - "traefik.http.routers.crecilandia-restaurante-api.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/restaurante-api`)"
+        - traefik.http.routers.crecilandia-restaurante-api.entrypoints=websecure
+        - traefik.http.routers.crecilandia-restaurante-api.tls.certresolver=letsencrypt
+        - traefik.http.routers.crecilandia-restaurante-api.middlewares=rate-limit,strip-crecilandia-restaurante-api
+        - traefik.http.routers.crecilandia-restaurante-api.priority=20
+        - traefik.http.routers.crecilandia-restaurante-api.service=crecilandia-restaurante-api
+        - traefik.http.middlewares.strip-crecilandia-restaurante-api.replacepathregex.regex=^/crecilandia/restaurante-api(.*)
+        - traefik.http.middlewares.strip-crecilandia-restaurante-api.replacepathregex.replacement=$${1}
+        - traefik.http.services.crecilandia-restaurante-api.loadbalancer.server.port=8104
+        - traefik.http.services.crecilandia-restaurante-api.loadbalancer.sticky.cookie=true
+        - traefik.http.services.crecilandia-restaurante-api.loadbalancer.sticky.cookie.name=crecilandia_restaurante_session
+        - traefik.http.services.crecilandia-restaurante-api.loadbalancer.sticky.cookie.secure=true
+    logging: *default-logging
+
+  crecilandia-restaurante-frontend:
+    image: ghcr.io/chaqui/fronted-restaurante:main
+    environment:
+      <<: *frontend-environment
+      PORT: "3104"
+      SERVER_PORT: "3104"
+      SERVICE_PORT: "3104"
+      APP_BASE_HREF: /crecilandia/restaurante/
+      API_URL: https://grupowagj.duckdns.org/crecilandia/restaurante-api
+      WS_URL: https://grupowagj.duckdns.org/crecilandia/restaurante-api/ws-inventario
+      SSR_API_URL: http://crecilandia-restaurante-backend:8104
+    volumes: [crecilandia-restaurante-frontend-data:/app/data, /etc/timezone:/etc/timezone:ro]
+    networks: [public-net]
+    deploy:
+      <<: *deploy-defaults
+      replicas: 1
+      resources: {limits: {cpus: "1", memory: 72M}}
+      labels:
+        - traefik.enable=true
+        - "traefik.http.routers.crecilandia-restaurante.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/restaurante`)"
+        - traefik.http.routers.crecilandia-restaurante.entrypoints=websecure
+        - traefik.http.routers.crecilandia-restaurante.tls.certresolver=letsencrypt
+        - traefik.http.routers.crecilandia-restaurante.middlewares=rate-limit,strip-crecilandia-restaurante
+        - traefik.http.routers.crecilandia-restaurante.priority=10
+        - traefik.http.routers.crecilandia-restaurante.service=crecilandia-restaurante-frontend
+        - traefik.http.middlewares.strip-crecilandia-restaurante.stripprefix.prefixes=/crecilandia/restaurante
+        - traefik.http.services.crecilandia-restaurante-frontend.loadbalancer.server.port=3104
+    logging: *default-logging
+
   catalogos:
     image: ghcr.io/chaqui/catalogos:main
     environment:
@@ -345,52 +442,40 @@ services:
       - SERVICE_NAME=catalogos
       - SERVICE_PORT=3001
       - SERVICE_URL=http://catalogos:3001
-
-    networks:
-      - public-net
+    networks: [public-net]
     deploy:
       <<: *deploy-defaults
       replicas: 1
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
+      resources: {limits: {cpus: "0.5", memory: 64M}}
       labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.catalogos.rule=Host(`repuestoshernandez.duckdns.org`) && PathPrefix(`/catalogos`)"
-        - "traefik.http.routers.catalogos.entrypoints=websecure"
-        - "traefik.http.routers.catalogos.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.catalogos.middlewares=rate-limit,strip-catalogos"
-        - "traefik.http.middlewares.strip-catalogos.stripprefix.prefixes=/catalogos"
-        - "traefik.http.services.catalogos.loadbalancer.server.port=3001"
+        - traefik.enable=true
+        - "traefik.http.routers.catalogos.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/catalogos`)"
+        - traefik.http.routers.catalogos.entrypoints=websecure
+        - traefik.http.routers.catalogos.tls.certresolver=letsencrypt
+        - traefik.http.routers.catalogos.middlewares=rate-limit,strip-catalogos
+        - traefik.http.middlewares.strip-catalogos.stripprefix.prefixes=/catalogos
+        - traefik.http.services.catalogos.loadbalancer.server.port=3001
     logging: *default-logging
     volumes:
-      - type: bind
-        source: ./pubkeys
-        target: /app/keys/public
-      - type: bind
-        source: ./keys
-        target: /app/keys
-      
+      - {type: bind, source: ./pubkeys, target: /app/keys/public}
+      - {type: bind, source: ./keys, target: /app/keys}
 
-# ============================================================
-# REDES
-# ============================================================
 networks:
   public-net:
     external: true
     name: sistema_public-net
 
-# ============================================================
-# VOLÚMENES (solo de aplicación, sin BDs)
-# ============================================================
 volumes:
-  traefik-certificates:
-    driver: local
-  inventario-uploads:
-    driver: local
-  inventario-logs:
-    driver: local
-  inventario-frontend-data:
-    driver: local
-
+  traefik-certificates: {driver: local}
+  losmolinos-store-uploads: {driver: local}
+  losmolinos-store-logs: {driver: local}
+  losmolinos-store-frontend-data: {driver: local}
+  crecilandia-store-uploads: {driver: local}
+  crecilandia-store-logs: {driver: local}
+  crecilandia-store-frontend-data: {driver: local}
+  losmolinos-restaurante-uploads: {driver: local}
+  losmolinos-restaurante-logs: {driver: local}
+  losmolinos-restaurante-frontend-data: {driver: local}
+  crecilandia-restaurante-uploads: {driver: local}
+  crecilandia-restaurante-logs: {driver: local}
+  crecilandia-restaurante-frontend-data: {driver: local}
