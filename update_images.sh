@@ -82,6 +82,53 @@ else die "El usuario no tiene acceso a Docker y sudo requiere interaccion."; fi
 docker_cmd() { "${DOCKER[@]}" "$@"; }
 stack_exists() { docker_cmd stack ls --format '{{.Name}}' 2>/dev/null | grep -Fxq "$STACK_NAME"; }
 is_manager() { [ "$(docker_cmd info --format '{{.Swarm.ControlAvailable}}' 2>/dev/null || true)" = true ]; }
+prepare_bind_dirs() {
+  local writable_dirs=(
+    "$SCRIPT_DIR/keys"
+    "$SCRIPT_DIR/logs/auth"
+    "$SCRIPT_DIR/logs/losmolinos-store-backend"
+    "$SCRIPT_DIR/logs/crecilandia-store-backend"
+    "$SCRIPT_DIR/logs/losmolinos-restaurante-backend"
+    "$SCRIPT_DIR/logs/crecilandia-restaurante-backend"
+    "$SCRIPT_DIR/data/losmolinos-store"
+    "$SCRIPT_DIR/data/crecilandia-store"
+    "$SCRIPT_DIR/data/losmolinos-restaurante"
+    "$SCRIPT_DIR/data/crecilandia-restaurante"
+  )
+  local dir
+  mkdir -p "$SCRIPT_DIR/certs"
+  chmod 755 "$SCRIPT_DIR/certs" || true
+  for dir in "${writable_dirs[@]}"; do
+    if [ ! -d "$dir" ]; then log "Creando directorio requerido por bind mount: $dir"; fi
+    mkdir -p "$dir"
+    chmod 777 "$dir" || true
+  done
+}
+recover_bind_mount_failures() {
+  local svc errors wanted active
+  while IFS= read -r svc; do
+    [ -n "$svc" ] || continue
+    wanted="$(desired_replicas "$svc")"
+    active="$(running_replicas "$svc")"
+    [ -n "$wanted" ] || continue
+    [ "$active" -lt "$wanted" ] || continue
+    errors="$(docker_cmd service ps --no-trunc --format '{{.Error}}' "$svc" 2>/dev/null || true)"
+    if grep -q 'invalid mount config.*bind source path does not exist' <<< "$errors"; then
+      if $DRY_RUN; then
+        log "DRY-RUN: reiniciaria $svc despues de reparar sus bind mounts."
+      else
+        log "Reiniciando $svc despues de reparar sus bind mounts."
+        docker_cmd service update --detach=true --force "$svc" 2>&1 | tee -a "$LOG_FILE"
+        if wait_healthy "$svc"; then
+          UPDATED_SERVICES+=("$svc")
+        else
+          log "ERROR: $svc no se recupero despues de reparar sus bind mounts."
+          FAILED_SERVICES+=("$svc")
+        fi
+      fi
+    fi
+  done < <(docker_cmd service ls --filter "label=com.docker.stack.namespace=${STACK_NAME}" --format '{{.Name}}')
+}
 
 load_env() {
   local line key value
@@ -388,6 +435,8 @@ if ! stack_exists; then
   notify success "Primer despliegue completado."; exit
 fi
 is_manager || die "Este nodo no es manager del Swarm."
+prepare_bind_dirs
+recover_bind_mount_failures
 remove_orphan_services
 [ "$MODE" = images ] || sync_env
 [ "$MODE" = env ] || sync_images

@@ -245,12 +245,24 @@ remove_stack_if_exists
 # auth-service escribe ./keys/public_key.pem y los demás servicios montan la
 # misma carpeta como /app/keys en modo lectura.
 prepare_dirs() {
-  DIRS=("./keys" "./logs/auth" "./logs/inventario-backend" "./certs")
+  DIRS=(
+    "./keys"
+    "./logs/auth"
+    "./logs/losmolinos-store-backend"
+    "./logs/crecilandia-store-backend"
+    "./logs/losmolinos-restaurante-backend"
+    "./logs/crecilandia-restaurante-backend"
+    "./data/losmolinos-store"
+    "./data/crecilandia-store"
+    "./data/losmolinos-restaurante"
+    "./data/crecilandia-restaurante"
+    "./certs"
+  )
   for d in "${DIRS[@]}"; do
     if [ ! -d "$d" ]; then
       log "Creando carpeta $d"
       mkdir -p "$d" || { log "ERROR: fallo creando $d"; exit 1; }
-      chmod 777 "$d" || true
+      if [ "$d" = "./certs" ]; then chmod 755 "$d" || true; else chmod 777 "$d" || true; fi
     else
       log "Carpeta $d ya existe"
     fi
