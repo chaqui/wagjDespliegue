@@ -8,6 +8,7 @@ INITIAL_DEPLOY_SCRIPT="${INITIAL_DEPLOY_SCRIPT:-${SCRIPT_DIR}/deploy_sequential.
 ENV_FILE="${ENV_FILE:-${SCRIPT_DIR}/.env}"
 ENV_STATE_FILE="${ENV_STATE_FILE:-${SCRIPT_DIR}/.env.applied.sha256}"
 ENV_HASH_KEY_FILE="${ENV_HASH_KEY_FILE:-${SCRIPT_DIR}/.env.hash.key}"
+JWT_SECRET_FILE="${JWT_SECRET_FILE:-${SCRIPT_DIR}/.jwt-secret}"
 LOG_FILE="${LOG_FILE:-${SCRIPT_DIR}/update-images.log}"
 STATUS_FILE="${STATUS_FILE:-${SCRIPT_DIR}/deploy-status.json}"
 LOCK_FILE="${LOCK_FILE:-/tmp/${STACK_NAME}-update-images.lock}"
@@ -115,6 +116,10 @@ generate_traefik_auth() {
   esac
   [ -n "${TRAEFIK_USER:-}" ] || die "Falta TRAEFIK_USER para generar TRAEFIK_DASHBOARD_AUTH."
   [ -n "${TRAEFIK_PASSWORD:-}" ] || die "Falta TRAEFIK_PASSWORD para generar TRAEFIK_DASHBOARD_AUTH."
+  case "$TRAEFIK_PASSWORD" in
+    *REEMPLAZAR*|*CHANGE_ME*|*change_me*)
+      die "TRAEFIK_PASSWORD conserva un valor de ejemplo. Configure una contraseña real." ;;
+  esac
   if command -v htpasswd >/dev/null 2>&1; then
     raw_hash="$(htpasswd -nb "$TRAEFIK_USER" "$TRAEFIK_PASSWORD")"
   elif command -v openssl >/dev/null 2>&1; then
@@ -139,8 +144,30 @@ generate_database_url() {
   export DB_URL="jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}"
   log "DB_URL generado automaticamente desde DB_HOST, DB_PORT y DB_NAME."
 }
+generate_jwt_secret() {
+  case "${JWT_SECRET:-}" in
+    ""|*REEMPLAZAR*|*CHANGE_ME*|*change_me*) ;;
+    *) return 0 ;;
+  esac
+  if [ -s "$JWT_SECRET_FILE" ]; then
+    export JWT_SECRET="$(<"$JWT_SECRET_FILE")"
+    log "JWT_SECRET cargado desde el archivo seguro local."
+    return 0
+  fi
+  umask 077
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 64 > "$JWT_SECRET_FILE"
+  elif command -v sha256sum >/dev/null 2>&1; then
+    head -c 128 /dev/urandom | sha256sum | awk '{print $1}' > "$JWT_SECRET_FILE"
+  else
+    die "Se necesita openssl o sha256sum para generar JWT_SECRET."
+  fi
+  chmod 600 "$JWT_SECRET_FILE"
+  export JWT_SECRET="$(<"$JWT_SECRET_FILE")"
+  log "JWT_SECRET generado automaticamente y guardado en un archivo seguro local."
+}
 validate_env() {
-  local required=(ACME_EMAIL DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET) missing=() key
+  local required=(ACME_EMAIL DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET) missing=() placeholders=() key value
   for key in "${required[@]}"; do [ -n "${!key:-}" ] || missing+=("$key"); done
   [ "${#missing[@]}" -eq 0 ] || die "Variables obligatorias vacias o ausentes: ${missing[*]}"
   [[ "$DB_URL" == jdbc:postgresql://* ]] || die "DB_URL debe iniciar con jdbc:postgresql://"
@@ -148,10 +175,11 @@ validate_env() {
     *example.internal*|*REEMPLAZAR*|*CHANGE_ME*|*change_me*)
       die "DB_URL conserva un valor de ejemplo ($DB_URL). Configure el host PostgreSQL real antes de desplegar." ;;
   esac
-  case "$DB_USERNAME:$DB_PASSWORD:$JWT_SECRET" in
-    *REEMPLAZAR*|*CHANGE_ME*|*change_me*)
-      die "DB_USERNAME, DB_PASSWORD o JWT_SECRET conserva un valor de ejemplo. Configure credenciales reales antes de desplegar." ;;
-  esac
+  for key in DB_USERNAME DB_PASSWORD JWT_SECRET; do
+    value="${!key-}"
+    case "$value" in *REEMPLAZAR*|*CHANGE_ME*|*change_me*) placeholders+=("$key");; esac
+  done
+  [ "${#placeholders[@]}" -eq 0 ] || die "Variables que conservan valores de ejemplo: ${placeholders[*]}. Configure valores reales antes de desplegar."
   [ "${#JWT_SECRET}" -ge 32 ] || die "JWT_SECRET debe tener al menos 32 caracteres."
   if [ -z "${TRAEFIK_DASHBOARD_AUTH:-}" ] && { [ -z "${TRAEFIK_USER:-}" ] || [ -z "${TRAEFIK_PASSWORD:-}" ]; }; then
     die "Defina TRAEFIK_DASHBOARD_AUTH o TRAEFIK_USER y TRAEFIK_PASSWORD."
@@ -249,7 +277,7 @@ restore_replicas() {
 }
 sync_env() {
   [ -f "$ENV_FILE" ] || { log "ADVERTENCIA: no existe $ENV_FILE; se omite .env."; return; }
-  load_env; generate_traefik_auth; generate_database_url; validate_env; ensure_hash_key
+  load_env; generate_traefik_auth; generate_database_url; generate_jwt_secret; validate_env; ensure_hash_key
   local current changes replicas versions services type key svc state_tmp
   current="$(mktemp /tmp/env-current.XXXXXX)"; changes="$(mktemp /tmp/env-changes.XXXXXX)"; replicas="$(mktemp /tmp/replicas.XXXXXX)"
   versions="$(mktemp /tmp/versions.XXXXXX)"; services="$(mktemp /tmp/env-services.XXXXXX)"; TMP_FILES+=("$current" "$changes" "$replicas" "$versions" "$services")
@@ -338,7 +366,14 @@ prune_images() { [ "$PRUNE_OLD_IMAGES" = true ] || return; log "Limpiando imagen
 if ! stack_exists; then
   $DRY_RUN && { log "DRY-RUN: se ejecutaria el primer despliegue."; exit; }
   log "El stack no existe; ejecutando despliegue inicial."; (cd "$SCRIPT_DIR" && bash "$INITIAL_DEPLOY_SCRIPT") 2>&1 | tee -a "$LOG_FILE"
-  if load_env; then ensure_hash_key; tmp="$(mktemp /tmp/env-initial.XXXXXX)"; build_env_state "$tmp"; mv "$tmp" "$ENV_STATE_FILE"; fi
+  if load_env; then
+    generate_database_url
+    generate_jwt_secret
+    ensure_hash_key
+    tmp="$(mktemp /tmp/env-initial.XXXXXX)"
+    build_env_state "$tmp"
+    mv "$tmp" "$ENV_STATE_FILE"
+  fi
   notify success "Primer despliegue completado."; exit
 fi
 is_manager || die "Este nodo no es manager del Swarm."

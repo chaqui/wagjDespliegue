@@ -62,6 +62,12 @@ automáticamente usando `DB_HOST`, `DB_PORT` (por defecto `5432`) y `DB_NAME`.
 Si ejecuta manualmente mediante `sudo`, use `sudo -E` para conservar las
 variables exportadas del servidor.
 
+Si `JWT_SECRET` falta o conserva un placeholder, se genera automáticamente una
+clave aleatoria de 128 caracteres hexadecimales. Se guarda en `.jwt-secret` con
+permisos `600`, se reutiliza en ejecuciones posteriores y nunca se imprime en
+los logs. Incluya ese archivo en sus copias de seguridad seguras: cambiarlo
+invalida los tokens JWT emitidos anteriormente.
+
 ## Despliegue
 
 Docker Swarm sustituye las variables desde el entorno del shell. Cargue `.env` y despliegue:

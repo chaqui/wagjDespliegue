@@ -47,6 +47,31 @@ generate_database_url() {
   fi
 }
 
+generate_jwt_secret() {
+  local jwt_file="${JWT_SECRET_FILE:-$(pwd)/.jwt-secret}"
+  case "${JWT_SECRET:-}" in
+    ""|*REEMPLAZAR*|*CHANGE_ME*|*change_me*) ;;
+    *) return 0 ;;
+  esac
+  if [ -s "$jwt_file" ]; then
+    export JWT_SECRET="$(<"$jwt_file")"
+    log "JWT_SECRET cargado desde el archivo seguro local"
+    return 0
+  fi
+  umask 077
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 64 > "$jwt_file"
+  elif command -v sha256sum >/dev/null 2>&1; then
+    head -c 128 /dev/urandom | sha256sum | awk '{print $1}' > "$jwt_file"
+  else
+    log "ERROR: se necesita openssl o sha256sum para generar JWT_SECRET"
+    exit 1
+  fi
+  chmod 600 "$jwt_file"
+  export JWT_SECRET="$(<"$jwt_file")"
+  log "JWT_SECRET generado automáticamente y guardado en un archivo seguro local"
+}
+
 # Generar TRAEFIK_DASHBOARD_AUTH automáticamente desde TRAEFIK_USER y TRAEFIK_PASSWORD
 # si TRAEFIK_DASHBOARD_AUTH no está definida en el .env
 generate_traefik_auth() {
@@ -59,6 +84,11 @@ generate_traefik_auth() {
       log "Agrega al .env:  TRAEFIK_USER=admin  y  TRAEFIK_PASSWORD=TuPassword"
       exit 1
     fi
+    case "$TRAEFIK_PASSWORD" in
+      *REEMPLAZAR*|*CHANGE_ME*|*change_me*)
+        log "ERROR: TRAEFIK_PASSWORD conserva un valor de ejemplo."
+        exit 1 ;;
+    esac
     # Requiere htpasswd (apache2-utils) o openssl
     if command -v htpasswd >/dev/null 2>&1; then
       HASH=$(htpasswd -nb "${TRAEFIK_USER}" "${TRAEFIK_PASSWORD}" | sed -e 's/\$/\$\$/g')
@@ -101,11 +131,17 @@ validate_required_vars() {
     done
     exit 1
   fi
-  case "$DB_URL:$DB_USERNAME:$DB_PASSWORD:$JWT_SECRET" in
-    *example.internal*|*REEMPLAZAR*|*CHANGE_ME*|*change_me*)
-      log "ERROR: la configuración de base de datos o JWT conserva valores de ejemplo."
-      exit 1 ;;
-  esac
+  PLACEHOLDERS=()
+  for var in DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET; do
+    val="${!var:-}"
+    case "$val" in
+      *example.internal*|*REEMPLAZAR*|*CHANGE_ME*|*change_me*) PLACEHOLDERS+=("$var") ;;
+    esac
+  done
+  if [ ${#PLACEHOLDERS[@]} -gt 0 ]; then
+    log "ERROR: variables con valores de ejemplo: ${PLACEHOLDERS[*]}"
+    exit 1
+  fi
   log "Variables requeridas validadas correctamente."
 }
 
@@ -257,6 +293,7 @@ else
 fi
 
 generate_database_url
+generate_jwt_secret
 generate_traefik_auth
 validate_required_vars
 

@@ -1,6 +1,7 @@
 .env
 .env.applied.sha256
 .env.hash.key
+.jwt-secret
 .digests/
 *.log
 deploy-status.json
