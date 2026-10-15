@@ -164,7 +164,15 @@ verify_or_rollback() {
   local svc failed=()
   for svc in "$@"; do log "Verificando $svc (timeout ${HEALTH_TIMEOUT}s)..."; wait_healthy "$svc" || failed+=("$svc"); done
   [ "${#failed[@]}" -eq 0 ] && return 0
-  for svc in "${failed[@]}"; do log "ERROR: $svc no quedo saludable; rollback."; docker_cmd service rollback --detach=true "$svc" 2>&1 | tee -a "$LOG_FILE" || true; FAILED_SERVICES+=("$svc"); done
+  for svc in "${failed[@]}"; do
+    log "ERROR: $svc no quedo saludable. Estado de actualizacion:"
+    docker_cmd service inspect --format '  {{if .UpdateStatus}}{{.UpdateStatus.State}}: {{.UpdateStatus.Message}}{{else}}sin UpdateStatus{{end}}' "$svc" 2>&1 | tee -a "$LOG_FILE" || true
+    log "Ultimas tareas de $svc:"
+    docker_cmd service ps --no-trunc --format '  {{.Name}} | {{.CurrentState}} | {{.Error}}' "$svc" 2>&1 | head -n 8 | tee -a "$LOG_FILE" || true
+    log "Solicitando rollback de $svc."
+    docker_cmd service rollback --detach=true "$svc" 2>&1 | tee -a "$LOG_FILE" || true
+    FAILED_SERVICES+=("$svc")
+  done
   return 1
 }
 save_replicas() {
@@ -188,7 +196,7 @@ sync_env() {
   while IFS='|' read -r type key; do log "  - $key ($type)"; while read -r svc; do [ -n "$svc" ] && log "      afecta: ${STACK_NAME}_$svc"; done < <(services_for_variable "$key" | sort -u); done < "$changes"
   $DRY_RUN && { log "DRY-RUN: las variables no se aplicaron."; return; }
   save_replicas "$replicas"; capture_versions > "$versions"
-  docker_cmd stack deploy --with-registry-auth -c "$COMPOSE_FILE" "$STACK_NAME" 2>&1 | tee -a "$LOG_FILE"
+  docker_cmd stack deploy --prune --with-registry-auth -c "$COMPOSE_FILE" "$STACK_NAME" 2>&1 | tee -a "$LOG_FILE"
   restore_replicas "$replicas"; changed_services_since "$versions" > "$services"
   local env_updated=(); mapfile -t env_updated < "$services"
   verify_or_rollback "${env_updated[@]}" || die "La actualizacion de .env fallo; se solicitaron rollbacks."
@@ -197,6 +205,24 @@ sync_env() {
 }
 read_service_images() {
   awk '/^services:/ {inside=1; next} inside && /^[^ ]/ {inside=0} inside && /^  [[:alnum:]_.-]+:$/ {s=$1; sub(/:$/, "",s)} inside && /^    image:/ {i=$0; sub(/^ *image: */,"",i); sub(/ *#.*/,"",i); gsub(/["\047]/,"",i); print s "|" i}' "$COMPOSE_FILE"
+}
+remove_orphan_services() {
+  local deployed compose_name desired_names orphaned=()
+  desired_names="$(read_service_images | cut -d'|' -f1)"
+  while IFS= read -r deployed; do
+    [ -n "$deployed" ] || continue
+    compose_name="${deployed#${STACK_NAME}_}"
+    if ! grep -Fxq "$compose_name" <<< "$desired_names"; then
+      orphaned+=("$deployed")
+      if $DRY_RUN; then
+        log "DRY-RUN: eliminaria el servicio ausente del YAML: $deployed"
+      else
+        log "Eliminando servicio ausente del YAML: $deployed"
+        docker_cmd service rm "$deployed" 2>&1 | tee -a "$LOG_FILE"
+      fi
+    fi
+  done < <(docker_cmd service ls --filter "label=com.docker.stack.namespace=${STACK_NAME}" --format '{{.Name}}')
+  [ "${#orphaned[@]}" -eq 0 ] || log "Servicios huerfanos detectados: ${orphaned[*]}"
 }
 image_digest() {
   local image="$1" repo candidate; repo="${image%%@*}"; [[ "${repo##*/}" == *:* ]] && repo="${repo%:*}"
@@ -253,6 +279,7 @@ if ! stack_exists; then
   notify success "Primer despliegue completado."; exit
 fi
 is_manager || die "Este nodo no es manager del Swarm."
+remove_orphan_services
 [ "$MODE" = images ] || sync_env
 [ "$MODE" = env ] || sync_images
 prune_images

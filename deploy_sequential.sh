@@ -162,9 +162,11 @@ remove_stack_if_exists() {
 
 remove_stack_if_exists
 
-# Preparación: crear carpetas necesarias para montajes bind (keys, logs, certs, pubkeys)
+# Preparación: crear carpetas necesarias para montajes bind.
+# auth-service escribe ./keys/public_key.pem y los demás servicios montan la
+# misma carpeta como /app/keys en modo lectura.
 prepare_dirs() {
-  DIRS=("./keys" "./keys/public" "./logs/auth" "./logs/inventario-backend" "./certs" "./pubkeys")
+  DIRS=("./keys" "./logs/auth" "./logs/inventario-backend" "./certs")
   for d in "${DIRS[@]}"; do
     if [ ! -d "$d" ]; then
       log "Creando carpeta $d"
@@ -274,15 +276,13 @@ WAIT_INITIAL=15
 log "Esperando ${WAIT_INITIAL}s para que auth-service inicialice y genere certificados"
 sleep $WAIT_INITIAL
 
-# verificar si auth generó un .pem en ./keys o ./keys/public
+# Verificar que auth generó la llave compartida.
 PEM_PATH=""
-if compgen -G "./keys/*.pem" >/dev/null; then
-  PEM_PATH=$(ls ./keys/*.pem | head -n1)
-elif compgen -G "./keys/public/*.pem" >/dev/null; then
-  PEM_PATH=$(ls ./keys/public/*.pem | head -n1)
+if [ -s "./keys/public_key.pem" ]; then
+  PEM_PATH="./keys/public_key.pem"
 fi
 if [ -z "$PEM_PATH" ]; then
-  log "ADVERTENCIA: auth-service no generó .pem en ./keys ni en ./keys/public después de ${WAIT_INITIAL}s"
+  log "ADVERTENCIA: auth-service no generó ./keys/public_key.pem después de ${WAIT_INITIAL}s"
   log "Revisando logs del servicio auth-service..."
   $SUDO_PREFIX $DOCKER_CMD service logs ${MAIN_STACK}_auth-service --tail 200 2>&1 | tee -a "$LOG" || true
 
@@ -295,17 +295,15 @@ if [ -z "$PEM_PATH" ]; then
     log "ADVERTENCIA: fallo al forzar update del servicio ${MAIN_STACK}_auth-service"
   fi
 
-  # Reintentar detectar .pem después del forzado
+  # Reintentar detectar la llave después del forzado
   PEM_PATH=""
-  if compgen -G "./keys/*.pem" >/dev/null; then
-    PEM_PATH=$(ls ./keys/*.pem | head -n1)
-  elif compgen -G "./keys/public/*.pem" >/dev/null; then
-    PEM_PATH=$(ls ./keys/public/*.pem | head -n1)
+  if [ -s "./keys/public_key.pem" ]; then
+    PEM_PATH="./keys/public_key.pem"
   fi
 
   # Si aún no hay .pem, registrar error y mostrar logs del servicio
   if [ -z "$PEM_PATH" ]; then
-    log "ERROR: tras forzar reinicio no se encontró .pem en ./keys ni en ./keys/public"
+    log "ERROR: tras forzar reinicio no se encontró ./keys/public_key.pem"
     log "Revisando logs del servicio auth-service para diagnosticar..."
     $SUDO_PREFIX $DOCKER_CMD service logs ${MAIN_STACK}_auth-service --tail 500 2>&1 | tee -a "$LOG" || true
     exit 1

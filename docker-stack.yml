@@ -29,7 +29,6 @@ x-frontend-environment: &frontend-environment
   ORIGIN: https://grupowagj.duckdns.org
   API_AUTH_URL: https://grupowagj.duckdns.org/usuarios-api/api
   AUTH_LOGIN: https://grupowagj.duckdns.org/usuarios/login
-  URL_CATALOGO: https://grupowagj.duckdns.org/catalogos
   SSR_API_AUTH_URL: http://auth-service:8082
   LOG_LEVEL: info
   LOG_FORMAT: json
@@ -100,9 +99,9 @@ services:
       - {type: bind, source: ./keys, target: /app/keys}
       - {type: bind, source: ./logs/auth, target: /app/logs}
       - {type: bind, source: ./certs, target: /app/certs, read_only: true}
-      - {type: bind, source: ./pubkeys, target: /app/keys/public}
     networks: [public-net]
     deploy:
+      <<: *deploy-defaults
       replicas: 1
       placement: {preferences: [{spread: node.id}]}
       resources: {limits: {cpus: "1", memory: 192M}}
@@ -120,7 +119,7 @@ services:
         - traefik.http.services.auth.loadbalancer.sticky.cookie.name=auth_session
         - traefik.http.services.auth.loadbalancer.sticky.cookie.secure=true
     healthcheck:
-      test: [CMD-SHELL, "test -r /app/keys/public_key.pem && test -s /app/keys/public_key.pem || exit 1"]
+      test: [CMD-SHELL, "test -s /app/keys/public_key.pem || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -161,9 +160,8 @@ services:
       - losmolinos-store-uploads:/app/uploads
       - losmolinos-store-logs:/var/log/inventario
       - {type: bind, source: ./certs, target: /app/certs, read_only: true}
-      - {type: bind, source: ./keys, target: /app/keys}
+      - {type: bind, source: ./keys, target: /app/keys, read_only: true}
       - {type: bind, source: ./logs/losmolinos-store-backend, target: /app/logs}
-      - {type: bind, source: ./pubkeys, target: /app/keys/public, read_only: true}
       - {type: bind, source: ./data/losmolinos-store, target: /uploads}
     networks: [public-net]
     deploy:
@@ -234,9 +232,8 @@ services:
       - crecilandia-store-uploads:/app/uploads
       - crecilandia-store-logs:/var/log/inventario
       - {type: bind, source: ./certs, target: /app/certs, read_only: true}
-      - {type: bind, source: ./keys, target: /app/keys}
+      - {type: bind, source: ./keys, target: /app/keys, read_only: true}
       - {type: bind, source: ./logs/crecilandia-store-backend, target: /app/logs}
-      - {type: bind, source: ./pubkeys, target: /app/keys/public, read_only: true}
       - {type: bind, source: ./data/crecilandia-store, target: /uploads}
     networks: [public-net]
     deploy:
@@ -307,9 +304,8 @@ services:
       - losmolinos-restaurante-uploads:/app/uploads
       - losmolinos-restaurante-logs:/var/log/inventario
       - {type: bind, source: ./certs, target: /app/certs, read_only: true}
-      - {type: bind, source: ./keys, target: /app/keys}
+      - {type: bind, source: ./keys, target: /app/keys, read_only: true}
       - {type: bind, source: ./logs/losmolinos-restaurante-backend, target: /app/logs}
-      - {type: bind, source: ./pubkeys, target: /app/keys/public, read_only: true}
       - {type: bind, source: ./data/losmolinos-restaurante, target: /uploads}
     networks: [public-net]
     deploy:
@@ -374,9 +370,8 @@ services:
       - crecilandia-restaurante-uploads:/app/uploads
       - crecilandia-restaurante-logs:/var/log/inventario
       - {type: bind, source: ./certs, target: /app/certs, read_only: true}
-      - {type: bind, source: ./keys, target: /app/keys}
+      - {type: bind, source: ./keys, target: /app/keys, read_only: true}
       - {type: bind, source: ./logs/crecilandia-restaurante-backend, target: /app/logs}
-      - {type: bind, source: ./pubkeys, target: /app/keys/public, read_only: true}
       - {type: bind, source: ./data/crecilandia-restaurante, target: /uploads}
     networks: [public-net]
     deploy:
@@ -427,38 +422,6 @@ services:
         - traefik.http.middlewares.strip-crecilandia-restaurante.stripprefix.prefixes=/crecilandia/restaurante
         - traefik.http.services.crecilandia-restaurante-frontend.loadbalancer.server.port=3104
     logging: *default-logging
-
-  catalogos:
-    image: ghcr.io/chaqui/catalogos:main
-    environment:
-      - DB=postgres
-      - DB_DATABASE=postgres
-      - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_SCHEMA=${DB_SCHEMA_CATALOGOS:-catalogos}
-      - AUTH_SERVICE_URL=http://auth-service:8082
-      - SERVICE_NAME=catalogos
-      - SERVICE_PORT=3001
-      - SERVICE_URL=http://catalogos:3001
-    networks: [public-net]
-    deploy:
-      <<: *deploy-defaults
-      replicas: 1
-      resources: {limits: {cpus: "0.5", memory: 64M}}
-      labels:
-        - traefik.enable=true
-        - "traefik.http.routers.catalogos.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/catalogos`)"
-        - traefik.http.routers.catalogos.entrypoints=websecure
-        - traefik.http.routers.catalogos.tls.certresolver=letsencrypt
-        - traefik.http.routers.catalogos.middlewares=rate-limit,strip-catalogos
-        - traefik.http.middlewares.strip-catalogos.stripprefix.prefixes=/catalogos
-        - traefik.http.services.catalogos.loadbalancer.server.port=3001
-    logging: *default-logging
-    volumes:
-      - {type: bind, source: ./pubkeys, target: /app/keys/public}
-      - {type: bind, source: ./keys, target: /app/keys}
 
 networks:
   public-net:

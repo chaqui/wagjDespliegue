@@ -16,11 +16,10 @@ Servicios compartidos:
 - `traefik`: proxy inverso, TLS Let's Encrypt y dashboard en `/traefik/dashboard/`.
 - `auth-service`: autenticación compartida publicada en `/usuarios-api`.
 - `frontend-usuarios`: gestión de usuarios publicada en `/usuarios`.
-- `catalogos`: catálogos compartidos publicados en `/catalogos`.
 
 Todos los servicios pertenecen a la red overlay externa `sistema_public-net`. Cada unidad tiene routers, middlewares, servicios Traefik, volúmenes y cookie sticky independientes. Los backends Store incluyen routers WebSocket dedicados para `ws-inventario`.
 
-La suma de los límites de memoria de los 12 servicios es `1424 MiB` (`1,493,172,224` bytes), por debajo del presupuesto global de `1.5 GB`, incluso si todos se ejecutan con una réplica. Los límites se distribuyen así: Traefik `80 MiB`, autenticación `192 MiB`, usuarios `64 MiB`, catálogos `64 MiB`, cada backend tenant `184 MiB` y cada frontend tenant `72 MiB`.
+La suma de los límites de memoria de los 11 servicios es `1360 MiB` (`1,426,063,360` bytes), por debajo del presupuesto global de `1.5 GB`, incluso si todos se ejecutan con una réplica. Los límites se distribuyen así: Traefik `80 MiB`, autenticación `192 MiB`, usuarios `64 MiB`, cada backend tenant `184 MiB` y cada frontend tenant `72 MiB`.
 
 ## Requisitos
 
@@ -35,7 +34,7 @@ La suma de los límites de memoria de los 12 servicios es `1424 MiB` (`1,493,172
 ```bash
 cp .env.example .env
 docker network create --driver overlay --attachable sistema_public-net
-mkdir -p keys pubkeys certs \
+mkdir -p keys certs \
   logs/auth \
   logs/losmolinos-store-backend logs/crecilandia-store-backend \
   logs/losmolinos-restaurante-backend logs/crecilandia-restaurante-backend \
@@ -95,7 +94,7 @@ Modos disponibles:
 ./update_images.sh --dry-run          # informar sin cambiar servicios
 ./update_images.sh --env-only         # solamente variables
 ./update_images.sh --images-only      # solamente imagenes
-./update_images.sh --force catalogos  # forzar un servicio
+./update_images.sh --force auth-service  # forzar un servicio
 ./update_images.sh --status           # ultimo resultado y estado Swarm
 ```
 
@@ -144,4 +143,8 @@ docker stack services sistema
 docker service logs -f sistema_traefik
 ```
 
-Compruebe que las llaves públicas compartidas estén disponibles en `./pubkeys`, que cada esquema exista y que el usuario PostgreSQL tenga permisos sobre los cuatro esquemas.
+Compruebe que la llave pública compartida esté disponible en
+`./keys/public_key.pem`. `auth-service` monta `./keys` con escritura y los
+demás servicios montan esa misma carpeta como `/app/keys` en modo de solo
+lectura. Verifique también que cada esquema exista y que el usuario PostgreSQL
+tenga permisos sobre los cuatro esquemas.
