@@ -48,11 +48,19 @@ Cree los esquemas conectándose a la base indicada por `DB_URL`:
 psql "postgresql://USUARIO:CONTRASENA@HOST:5432/BASE" -f schemas.sql
 ```
 
-Genere el valor de autenticación básica del dashboard con los signos `$` duplicados para Docker Compose:
+Defina el usuario y la contraseña del dashboard. El script genera
+`TRAEFIK_DASHBOARD_AUTH` automáticamente sin mostrar el hash ni la contraseña:
 
-```bash
-echo $(htpasswd -nb admin 'CAMBIAR_CONTRASENA') | sed -e 's/\$/\$\$/g'
+```dotenv
+TRAEFIK_USER=admin
+TRAEFIK_PASSWORD=CAMBIAR_CONTRASENA
 ```
+
+Las variables ya exportadas en el servidor tienen prioridad sobre `.env`. Si
+`DB_URL` no está definida o conserva un placeholder, también puede generarse
+automáticamente usando `DB_HOST`, `DB_PORT` (por defecto `5432`) y `DB_NAME`.
+Si ejecuta manualmente mediante `sudo`, use `sudo -E` para conservar las
+variables exportadas del servidor.
 
 ## Despliegue
 

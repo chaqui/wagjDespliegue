@@ -8,7 +8,6 @@ Requires=docker.service
 Type=simple
 User=root
 WorkingDirectory=/ruta/al/proyecto/despliegue-inventario
-EnvironmentFile=-/ruta/al/proyecto/despliegue-inventario/.env
 Environment=POLL_INTERVAL=60
 ExecStart=/ruta/al/proyecto/despliegue-inventario/watch_and_deploy.sh
 Restart=on-failure

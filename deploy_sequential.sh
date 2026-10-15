@@ -12,10 +12,48 @@ check_cmd() { command -v "$1" >/dev/null 2>&1 || { log "ERROR: required command 
 
 check_cmd docker
 
+load_env_preserving_server_vars() {
+  local line key value overrides=()
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    line="${line#export }"
+    key="${line%%=*}"
+    value="${line#*=}"
+    key="$(printf '%s' "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { log "ERROR: variable inválida en .env: $key"; exit 1; }
+    if [[ "$value" == \"*\" ]] || [[ "$value" == \'*\' ]]; then value="${value:1:${#value}-2}"; fi
+    if printenv "$key" >/dev/null 2>&1; then
+      [ "${!key-}" = "$value" ] || overrides+=("$key")
+    else
+      export "$key=$value"
+    fi
+  done < .env
+  if [ "${#overrides[@]}" -gt 0 ]; then
+    log "Variables del servidor que tienen prioridad sobre .env: $(printf '%s\n' "${overrides[@]}" | sort -u | tr '\n' ' ')"
+  fi
+}
+
+generate_database_url() {
+  case "${DB_URL:-}" in
+    ""|*example.internal*|*REEMPLAZAR*|*CHANGE_ME*|*change_me*) ;;
+    *) return 0 ;;
+  esac
+  if [ -n "${DB_HOST:-}" ] && [ -n "${DB_NAME:-}" ]; then
+    export DB_PORT="${DB_PORT:-5432}"
+    export DB_URL="jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}"
+    log "DB_URL generado automáticamente desde DB_HOST, DB_PORT y DB_NAME"
+  fi
+}
+
 # Generar TRAEFIK_DASHBOARD_AUTH automáticamente desde TRAEFIK_USER y TRAEFIK_PASSWORD
 # si TRAEFIK_DASHBOARD_AUTH no está definida en el .env
 generate_traefik_auth() {
-  if [ -z "${TRAEFIK_DASHBOARD_AUTH:-}" ]; then
+  if [ -z "${TRAEFIK_DASHBOARD_AUTH:-}" ] || \
+     [[ "${TRAEFIK_DASHBOARD_AUTH}" == *REEMPLAZAR* ]] || \
+     [[ "${TRAEFIK_DASHBOARD_AUTH}" == *CHANGE_ME* ]] || \
+     [[ "${TRAEFIK_DASHBOARD_AUTH}" == *change_me* ]]; then
     if [ -z "${TRAEFIK_USER:-}" ] || [ -z "${TRAEFIK_PASSWORD:-}" ]; then
       log "ERROR: TRAEFIK_DASHBOARD_AUTH no está definida y faltan TRAEFIK_USER o TRAEFIK_PASSWORD para generarla."
       log "Agrega al .env:  TRAEFIK_USER=admin  y  TRAEFIK_PASSWORD=TuPassword"
@@ -63,6 +101,11 @@ validate_required_vars() {
     done
     exit 1
   fi
+  case "$DB_URL:$DB_USERNAME:$DB_PASSWORD:$JWT_SECRET" in
+    *example.internal*|*REEMPLAZAR*|*CHANGE_ME*|*change_me*)
+      log "ERROR: la configuración de base de datos o JWT conserva valores de ejemplo."
+      exit 1 ;;
+  esac
   log "Variables requeridas validadas correctamente."
 }
 
@@ -208,14 +251,12 @@ log "Iniciando despliegue del stack $MAIN_STACK"
 # Cargar variables desde .env al entorno para que sudo -E las preserve
 if [ -f .env ]; then
   log "Cargando variables desde .env al entorno (export)"
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
+  load_env_preserving_server_vars
 else
   log "ADVERTENCIA: .env no encontrado en $(pwd); las variables no serán exportadas"
 fi
 
+generate_database_url
 generate_traefik_auth
 validate_required_vars
 

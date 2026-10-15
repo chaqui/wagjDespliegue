@@ -20,6 +20,7 @@ WEBHOOK_URL="${WEBHOOK_URL:-}"
 
 MODE=all DRY_RUN=false FORCE_SERVICE=""
 UPDATED_SERVICES=() FAILED_SERVICES=() UNCHANGED_SERVICES=() TMP_FILES=()
+ENV_OVERRIDE_NAMES=()
 
 usage() {
   cat <<'EOF'
@@ -94,14 +95,63 @@ load_env() {
     key="$(printf '%s' "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
     [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "Variable invalida en .env: $key"
     if [[ "$value" == \"*\" ]] || [[ "$value" == \'*\' ]]; then value="${value:1:${#value}-2}"; fi
-    export "$key=$value"
+    # Las variables ya exportadas por systemd o por el shell tienen prioridad.
+    # Solo se registra el nombre, nunca el valor.
+    if printenv "$key" >/dev/null 2>&1; then
+      [ "${!key-}" = "$value" ] || ENV_OVERRIDE_NAMES+=("$key")
+    else
+      export "$key=$value"
+    fi
   done < "$ENV_FILE"
+  if [ "${#ENV_OVERRIDE_NAMES[@]}" -gt 0 ]; then
+    log "Variables del servidor que tienen prioridad sobre .env: $(printf '%s\n' "${ENV_OVERRIDE_NAMES[@]}" | sort -u | tr '\n' ' ')"
+  fi
+}
+generate_traefik_auth() {
+  local raw_hash
+  case "${TRAEFIK_DASHBOARD_AUTH:-}" in
+    ""|*REEMPLAZAR*|*CHANGE_ME*|*change_me*) ;;
+    *) return 0 ;;
+  esac
+  [ -n "${TRAEFIK_USER:-}" ] || die "Falta TRAEFIK_USER para generar TRAEFIK_DASHBOARD_AUTH."
+  [ -n "${TRAEFIK_PASSWORD:-}" ] || die "Falta TRAEFIK_PASSWORD para generar TRAEFIK_DASHBOARD_AUTH."
+  if command -v htpasswd >/dev/null 2>&1; then
+    raw_hash="$(htpasswd -nb "$TRAEFIK_USER" "$TRAEFIK_PASSWORD")"
+  elif command -v openssl >/dev/null 2>&1; then
+    raw_hash="${TRAEFIK_USER}:$(openssl passwd -apr1 "$TRAEFIK_PASSWORD")"
+  else
+    die "Se necesita htpasswd u openssl para generar TRAEFIK_DASHBOARD_AUTH."
+  fi
+  export TRAEFIK_DASHBOARD_AUTH="$(printf '%s' "$raw_hash" | sed 's/\$/$$/g')"
+  log "TRAEFIK_DASHBOARD_AUTH generado automaticamente para TRAEFIK_USER=$TRAEFIK_USER."
+}
+generate_database_url() {
+  case "${DB_URL:-}" in
+    ""|*example.internal*|*REEMPLAZAR*|*CHANGE_ME*|*change_me*) ;;
+    *) return 0 ;;
+  esac
+  [ -n "${DB_HOST:-}" ] || return 0
+  [ -n "${DB_NAME:-}" ] || return 0
+  case "$DB_HOST:$DB_NAME" in
+    *example.internal*|*REEMPLAZAR*|*CHANGE_ME*|*change_me*) return 0 ;;
+  esac
+  export DB_PORT="${DB_PORT:-5432}"
+  export DB_URL="jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}"
+  log "DB_URL generado automaticamente desde DB_HOST, DB_PORT y DB_NAME."
 }
 validate_env() {
   local required=(ACME_EMAIL DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET) missing=() key
   for key in "${required[@]}"; do [ -n "${!key:-}" ] || missing+=("$key"); done
   [ "${#missing[@]}" -eq 0 ] || die "Variables obligatorias vacias o ausentes: ${missing[*]}"
   [[ "$DB_URL" == jdbc:postgresql://* ]] || die "DB_URL debe iniciar con jdbc:postgresql://"
+  case "$DB_URL" in
+    *example.internal*|*REEMPLAZAR*|*CHANGE_ME*|*change_me*)
+      die "DB_URL conserva un valor de ejemplo ($DB_URL). Configure el host PostgreSQL real antes de desplegar." ;;
+  esac
+  case "$DB_USERNAME:$DB_PASSWORD:$JWT_SECRET" in
+    *REEMPLAZAR*|*CHANGE_ME*|*change_me*)
+      die "DB_USERNAME, DB_PASSWORD o JWT_SECRET conserva un valor de ejemplo. Configure credenciales reales antes de desplegar." ;;
+  esac
   [ "${#JWT_SECRET}" -ge 32 ] || die "JWT_SECRET debe tener al menos 32 caracteres."
   if [ -z "${TRAEFIK_DASHBOARD_AUTH:-}" ] && { [ -z "${TRAEFIK_USER:-}" ] || [ -z "${TRAEFIK_PASSWORD:-}" ]; }; then
     die "Defina TRAEFIK_DASHBOARD_AUTH o TRAEFIK_USER y TRAEFIK_PASSWORD."
@@ -122,7 +172,12 @@ hash_value() {
 build_env_state() {
   local output="$1" key; : > "$output"
   while read -r key; do printf '%s=%s\n' "$key" "$(hash_value "${!key-}")"; done < <(
-    sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=.*/\2/p' "$ENV_FILE" | sort -u
+    {
+      sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=.*/\2/p' "$ENV_FILE" | grep -v '^TRAEFIK_DASHBOARD_AUTH$'
+      # Se rastrean las entradas del hash de Traefik, no el hash generado:
+      # APR1 usa sal aleatoria y cambiaría en cada ejecución.
+      printf '%s\n' DB_URL DB_HOST DB_PORT DB_NAME DB_USERNAME DB_PASSWORD JWT_SECRET TRAEFIK_USER TRAEFIK_PASSWORD
+    } | sort -u
   ) >> "$output"; chmod 600 "$output"
 }
 env_changes() {
@@ -138,8 +193,9 @@ env_changes() {
 services_for_variable() {
   local key="$1" marker='${'"$key"'}'
   awk -v marker="$marker" '/^services:/ {inside=1; next} inside && /^[^ ]/ {inside=0} inside && /^  [[:alnum:]_.-]+:$/ {s=$1; sub(/:$/, "",s)} inside && index($0,marker) {print s}' "$COMPOSE_FILE"
-  case "$key" in DB_URL|DB_USERNAME|DB_PASSWORD|JWT_SECRET)
+  case "$key" in DB_URL|DB_HOST|DB_PORT|DB_NAME|DB_USERNAME|DB_PASSWORD|JWT_SECRET)
     awk '/^  [[:alnum:]_.-]+:$/ {s=$1; sub(/:$/, "",s)} /\*backend-environment/ {print s}' "$COMPOSE_FILE";; esac
+  case "$key" in TRAEFIK_USER|TRAEFIK_PASSWORD|TRAEFIK_DASHBOARD_AUTH) echo traefik;; esac
 }
 capture_versions() {
   local svc; while read -r svc; do printf '%s|%s\n' "$svc" "$(docker_cmd service inspect --format '{{.Version.Index}}' "$svc")"; done < <(
@@ -165,12 +221,19 @@ verify_or_rollback() {
   for svc in "$@"; do log "Verificando $svc (timeout ${HEALTH_TIMEOUT}s)..."; wait_healthy "$svc" || failed+=("$svc"); done
   [ "${#failed[@]}" -eq 0 ] && return 0
   for svc in "${failed[@]}"; do
+    local update_state
+    update_state="$(docker_cmd service inspect --format '{{if .UpdateStatus}}{{.UpdateStatus.State}}{{end}}' "$svc" 2>/dev/null || true)"
     log "ERROR: $svc no quedo saludable. Estado de actualizacion:"
     docker_cmd service inspect --format '  {{if .UpdateStatus}}{{.UpdateStatus.State}}: {{.UpdateStatus.Message}}{{else}}sin UpdateStatus{{end}}' "$svc" 2>&1 | tee -a "$LOG_FILE" || true
     log "Ultimas tareas de $svc:"
     docker_cmd service ps --no-trunc --format '  {{.Name}} | {{.CurrentState}} | {{.Error}}' "$svc" 2>&1 | head -n 8 | tee -a "$LOG_FILE" || true
-    log "Solicitando rollback de $svc."
-    docker_cmd service rollback --detach=true "$svc" 2>&1 | tee -a "$LOG_FILE" || true
+    case "$update_state" in
+      rollback_*|rollback-paused)
+        log "Docker ya intento el rollback de $svc; no se solicitara otro." ;;
+      *)
+        log "Solicitando rollback de $svc."
+        docker_cmd service rollback --detach=true "$svc" 2>&1 | tee -a "$LOG_FILE" || true ;;
+    esac
     FAILED_SERVICES+=("$svc")
   done
   return 1
@@ -186,7 +249,7 @@ restore_replicas() {
 }
 sync_env() {
   [ -f "$ENV_FILE" ] || { log "ADVERTENCIA: no existe $ENV_FILE; se omite .env."; return; }
-  load_env; validate_env; ensure_hash_key
+  load_env; generate_traefik_auth; generate_database_url; validate_env; ensure_hash_key
   local current changes replicas versions services type key svc state_tmp
   current="$(mktemp /tmp/env-current.XXXXXX)"; changes="$(mktemp /tmp/env-changes.XXXXXX)"; replicas="$(mktemp /tmp/replicas.XXXXXX)"
   versions="$(mktemp /tmp/versions.XXXXXX)"; services="$(mktemp /tmp/env-services.XXXXXX)"; TMP_FILES+=("$current" "$changes" "$replicas" "$versions" "$services")
