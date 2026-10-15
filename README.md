@@ -19,7 +19,7 @@ Servicios compartidos:
 
 Todos los servicios pertenecen a la red overlay externa `sistema_public-net`. Cada unidad tiene routers, middlewares, servicios Traefik, volúmenes y cookie sticky independientes. Los backends Store incluyen routers WebSocket dedicados para `ws-inventario`.
 
-La suma de los límites de memoria de los 11 servicios es `1360 MiB` (`1,426,063,360` bytes), por debajo del presupuesto global de `1.5 GB`, incluso si todos se ejecutan con una réplica. Los límites se distribuyen así: Traefik `80 MiB`, autenticación `192 MiB`, usuarios `64 MiB`, cada backend tenant `184 MiB` y cada frontend tenant `72 MiB`.
+La suma de los límites de memoria de los 11 servicios es `1520 MiB` (`1,593,835,520` bytes), por debajo de `1.5 GiB` (`1536 MiB`), incluso si todos se ejecutan con una réplica. Los límites se distribuyen así: Traefik `80 MiB`, autenticación `352 MiB`, usuarios `64 MiB`, cada backend tenant `184 MiB` y cada frontend tenant `72 MiB`. Autenticación utiliza `-Xms96m -Xmx224m`, dejando `128 MiB` para Metaspace, hilos, buffers y memoria nativa.
 
 ## Requisitos
 

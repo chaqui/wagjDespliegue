@@ -12,7 +12,7 @@ JWT_SECRET_FILE="${JWT_SECRET_FILE:-${SCRIPT_DIR}/.jwt-secret}"
 LOG_FILE="${LOG_FILE:-${SCRIPT_DIR}/update-images.log}"
 STATUS_FILE="${STATUS_FILE:-${SCRIPT_DIR}/deploy-status.json}"
 LOCK_FILE="${LOCK_FILE:-/tmp/${STACK_NAME}-update-images.lock}"
-HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-180}"
+HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-420}"
 PRUNE_OLD_IMAGES="${PRUNE_OLD_IMAGES:-false}"
 PRUNE_UNTIL="${PRUNE_UNTIL:-168h}"
 TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
@@ -166,6 +166,16 @@ generate_jwt_secret() {
   export JWT_SECRET="$(<"$JWT_SECRET_FILE")"
   log "JWT_SECRET generado automaticamente y guardado en un archivo seguro local."
 }
+normalize_runtime_config() {
+  if ! [[ "$HEALTH_TIMEOUT" =~ ^[0-9]+$ ]]; then
+    die "HEALTH_TIMEOUT debe ser un numero entero de segundos."
+  fi
+  if [ "$HEALTH_TIMEOUT" -lt 420 ]; then
+    log "HEALTH_TIMEOUT=$HEALTH_TIMEOUT es insuficiente para auth-service; se ajusta a 420s."
+    HEALTH_TIMEOUT=420
+    export HEALTH_TIMEOUT
+  fi
+}
 validate_env() {
   local required=(ACME_EMAIL DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET) missing=() placeholders=() key value
   for key in "${required[@]}"; do [ -n "${!key:-}" ] || missing+=("$key"); done
@@ -240,8 +250,9 @@ wait_healthy() {
   desired="$(desired_replicas "$svc")"; [ -n "$desired" ] || return 0
   while [ "$elapsed" -lt "$HEALTH_TIMEOUT" ]; do
     running="$(running_replicas "$svc")"; state="$(docker_cmd service inspect --format '{{if .UpdateStatus}}{{.UpdateStatus.State}}{{end}}' "$svc" 2>/dev/null || true)"
-    [ "$running" -eq "$desired" ] && [[ "$state" != updating* ]] && [ "$state" != paused ] && return 0
-    [ "$state" = paused ] && break; sleep 5; elapsed=$((elapsed+5))
+    case "$state" in paused|rollback_paused|rollback_completed) return 1;; esac
+    if [ "$running" -eq "$desired" ] && { [ -z "$state" ] || [ "$state" = completed ]; }; then return 0; fi
+    sleep 5; elapsed=$((elapsed+5))
   done; return 1
 }
 verify_or_rollback() {
@@ -277,7 +288,7 @@ restore_replicas() {
 }
 sync_env() {
   [ -f "$ENV_FILE" ] || { log "ADVERTENCIA: no existe $ENV_FILE; se omite .env."; return; }
-  load_env; generate_traefik_auth; generate_database_url; generate_jwt_secret; validate_env; ensure_hash_key
+  load_env; normalize_runtime_config; generate_traefik_auth; generate_database_url; generate_jwt_secret; validate_env; ensure_hash_key
   local current changes replicas versions services type key svc state_tmp
   current="$(mktemp /tmp/env-current.XXXXXX)"; changes="$(mktemp /tmp/env-changes.XXXXXX)"; replicas="$(mktemp /tmp/replicas.XXXXXX)"
   versions="$(mktemp /tmp/versions.XXXXXX)"; services="$(mktemp /tmp/env-services.XXXXXX)"; TMP_FILES+=("$current" "$changes" "$replicas" "$versions" "$services")

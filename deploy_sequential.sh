@@ -349,10 +349,16 @@ for svc in $SERVICES; do
   fi
 done
 
-# esperar 15s para que auth-service inicialice y genere certificados
-WAIT_INITIAL=15
-log "Esperando ${WAIT_INITIAL}s para que auth-service inicialice y genere certificados"
-sleep $WAIT_INITIAL
+# Esperar activamente a que auth-service inicialice y genere la llave. En
+# instancias pequeñas Spring/JPA puede tardar varios minutos.
+WAIT_INITIAL=300
+WAIT_KEY_INTERVAL=5
+waited_for_key=0
+log "Esperando hasta ${WAIT_INITIAL}s para que auth-service genere ./keys/public_key.pem"
+while [ "$waited_for_key" -lt "$WAIT_INITIAL" ] && [ ! -s "./keys/public_key.pem" ]; do
+  sleep "$WAIT_KEY_INTERVAL"
+  waited_for_key=$((waited_for_key + WAIT_KEY_INTERVAL))
+done
 
 # Verificar que auth generó la llave compartida.
 PEM_PATH=""
@@ -367,8 +373,12 @@ if [ -z "$PEM_PATH" ]; then
   # Intentar forzar reinicio de tareas del servicio auth-service
   log "Intentando forzar reinicio del servicio ${MAIN_STACK}_auth-service (service update --force)"
   if $SUDO_PREFIX $DOCKER_CMD service update --detach=true --force ${MAIN_STACK}_auth-service 2>&1 | tee -a "$LOG"; then
-    log "Comando --force enviado. Esperando 10s para reinicio..."
-    sleep 10
+    log "Comando --force enviado. Esperando hasta ${WAIT_INITIAL}s para que se genere la llave..."
+    waited_for_key=0
+    while [ "$waited_for_key" -lt "$WAIT_INITIAL" ] && [ ! -s "./keys/public_key.pem" ]; do
+      sleep "$WAIT_KEY_INTERVAL"
+      waited_for_key=$((waited_for_key + WAIT_KEY_INTERVAL))
+    done
   else
     log "ADVERTENCIA: fallo al forzar update del servicio ${MAIN_STACK}_auth-service"
   fi
