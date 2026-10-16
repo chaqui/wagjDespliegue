@@ -23,7 +23,7 @@ Todos los servicios Java ejecutan el perfil Spring `postgres`, usan explícitame
 
 Cada backend fija además su esquema con `SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA` y `SPRING_DATASOURCE_HIKARI_SCHEMA`. Esto evita que Hibernate valide o consulte las tablas en `public` cuando los esquemas tienen nombres específicos como `CrecilandiaRestaurante`.
 
-Los cuatro backends reciben `AUTH_SERVICE_URL` y `SERVICE_BASE_URL` con el valor interno `http://auth-service:8082`, resoluble mediante la red overlay de Swarm.
+Los cuatro backends reciben `AUTH_SERVICE_URL=http://auth-service:8082`. Cada uno anuncia mediante `SERVICE_BASE_URL` la URL pública de su frontend relacionado: `/losmolinos/store`, `/crecilandia/store`, `/losmolinos/restaurante` o `/crecilandia/restaurante`, bajo `https://grupowagj.duckdns.org`.
 
 La URL entregada a cada backend incluye también `currentSchema=<esquema>`. Esta es la protección principal para imágenes que construyen un `DataSource` personalizado desde `DB_URL` y no respetan todas las propiedades estándar de Spring.
 

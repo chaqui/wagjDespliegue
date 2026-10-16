@@ -29,7 +29,6 @@ x-backend-environment: &backend-environment
   SPRING_JPA_SHOW_SQL: "false"
   SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: "false"
   AUTH_SERVICE_URL: http://auth-service:8082
-  SERVICE_BASE_URL: http://auth-service:8082
 
 x-frontend-environment: &frontend-environment
   NODE_ENV: production
@@ -177,6 +176,7 @@ services:
       SERVICE_PORT: "8101"
       SERVICE_NAME: losmolinos-store-backend
       SERVICE_URL: http://losmolinos-store-backend:8101
+      SERVICE_BASE_URL: https://grupowagj.duckdns.org/losmolinos/store
     volumes:
       - losmolinos-store-uploads:/app/uploads
       - losmolinos-store-logs:/var/log/inventario
@@ -253,6 +253,7 @@ services:
       SERVICE_PORT: "8102"
       SERVICE_NAME: crecilandia-store-backend
       SERVICE_URL: http://crecilandia-store-backend:8102
+      SERVICE_BASE_URL: https://grupowagj.duckdns.org/crecilandia/store
     volumes:
       - crecilandia-store-uploads:/app/uploads
       - crecilandia-store-logs:/var/log/inventario
@@ -329,6 +330,7 @@ services:
       SERVICE_PORT: "8103"
       SERVICE_NAME: losmolinos-restaurante-backend
       SERVICE_URL: http://losmolinos-restaurante-backend:8103
+      SERVICE_BASE_URL: https://grupowagj.duckdns.org/losmolinos/restaurante
     volumes:
       - losmolinos-restaurante-uploads:/app/uploads
       - losmolinos-restaurante-logs:/var/log/inventario
@@ -399,6 +401,7 @@ services:
       SERVICE_PORT: "8104"
       SERVICE_NAME: crecilandia-restaurante-backend
       SERVICE_URL: http://crecilandia-restaurante-backend:8104
+      SERVICE_BASE_URL: https://grupowagj.duckdns.org/crecilandia/restaurante
     volumes:
       - crecilandia-restaurante-uploads:/app/uploads
       - crecilandia-restaurante-logs:/var/log/inventario
