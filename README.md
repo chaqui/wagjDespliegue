@@ -29,7 +29,11 @@ Cada restaurante conserva su par RSA en un directorio bind independiente y escri
 
 La URL entregada a cada backend incluye también `currentSchema=<esquema>`. Esta es la protección principal para imágenes que construyen un `DataSource` personalizado desde `DB_URL` y no respetan todas las propiedades estándar de Spring.
 
+La imagen Store todavía genera algunos assets bajo `/inventario/`. Dos routers Traefik de compatibilidad usan el encabezado `Referer` para enviar esos recursos al Store correspondiente y eliminan el prefijo antes de entregarlos a Nginx. Esto evita mezclar los assets de Store con los del frontend Restaurante.
+
 Los backends de restaurante usan el tag móvil `ghcr.io/chaqui/restaurant-java:main`. El actualizador descarga ese tag, compara su digest con el desplegado y actualiza los servicios únicamente cuando el contenido publicado cambia. El flujo de CI debe publicar también `:main`, además del tag inmutable `main-<commit>`.
+
+Los frontends de restaurante están fijados en `ghcr.io/chaqui/fronted-restaurante:main-92745dd`. En modo `--images-only`, el actualizador compara el digest descargado con el digest de cada servicio y evita reinicios cuando ya coinciden.
 
 La suma de los límites configurados para los 11 servicios es `1616 MiB` (`1,694,498,816` bytes, aproximadamente `1.695 GB` decimales), por debajo de `1.7 GB`. Los límites no son reservas, pero el host debe disponer de memoria física y swap suficientes cuando todos los servicios ejecuten una réplica. Se distribuyen así: Traefik `64 MiB`, autenticación `288 MiB`, usuarios `48 MiB`, cada backend tenant `256 MiB` y cada frontend tenant `48 MiB`. Autenticación utiliza `-Xms64m -Xmx176m`; los backends usan `-Xms64m -Xmx128m`, dejando `128 MiB` por backend para Metaspace, hilos, buffers y memoria nativa. Las actualizaciones usan `stop-first` para no duplicar temporalmente el consumo del servicio actualizado.
 
