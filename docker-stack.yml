@@ -9,6 +9,11 @@ x-deploy-defaults: &deploy-defaults
 
 x-backend-environment: &backend-environment
   SPRING_PROFILES_ACTIVE: postgres
+  SPRING_FLYWAY_ENABLED: "false"
+  SPRING_DATASOURCE_URL: ${DB_URL}
+  SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
+  SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+  SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
   DB_URL: ${DB_URL}
   DB_USER: ${DB_USERNAME}
   DB_PASSWORD: ${DB_PASSWORD}
@@ -88,6 +93,12 @@ services:
   auth-service:
     image: ghcr.io/chaqui/auth-service:latest
     environment:
+      - SPRING_PROFILES_ACTIVE=postgres
+      - SPRING_FLYWAY_ENABLED=false
+      - SPRING_DATASOURCE_URL=${DB_URL}
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
       - DB_URL=${DB_URL}
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}

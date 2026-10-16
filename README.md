@@ -19,6 +19,8 @@ Servicios compartidos:
 
 Todos los servicios pertenecen a la red overlay externa `sistema_public-net`. Cada unidad tiene routers, middlewares, servicios Traefik, volúmenes y cookie sticky independientes. Los backends Store incluyen routers WebSocket dedicados para `ws-inventario`.
 
+Todos los servicios Java ejecutan el perfil Spring `postgres`, usan explícitamente `org.postgresql.Driver` y tienen Flyway desactivado mediante `SPRING_FLYWAY_ENABLED=false`. La estructura requerida debe existir en PostgreSQL o ser administrada por la estrategia JPA propia de cada aplicación.
+
 La suma de los límites configurados para los 11 servicios es `1616 MiB` (`1,694,498,816` bytes, aproximadamente `1.695 GB` decimales), por debajo de `1.7 GB`. Los límites no son reservas, pero el host debe disponer de memoria física y swap suficientes cuando todos los servicios ejecuten una réplica. Se distribuyen así: Traefik `64 MiB`, autenticación `288 MiB`, usuarios `48 MiB`, cada backend tenant `256 MiB` y cada frontend tenant `48 MiB`. Autenticación utiliza `-Xms64m -Xmx176m`; los backends usan `-Xms64m -Xmx128m`, dejando `128 MiB` por backend para Metaspace, hilos, buffers y memoria nativa. Las actualizaciones usan `stop-first` para no duplicar temporalmente el consumo del servicio actualizado.
 
 El despliegue inicial exige por defecto `90` segundos continuos sin cambios de tareas antes de considerarlo estable. Los valores pueden ajustarse con `DEPLOY_STABLE_SECONDS` y `DEPLOY_READY_TIMEOUT`; este último tiene un valor predeterminado de `300` segundos.
