@@ -7,6 +7,13 @@ COMPOSE_FILE="$(pwd)/docker-stack.yml"
 
 log() { echo "[$(date +"%Y-%m-%d %H:%M:%S")] $*" | tee -a "$LOG"; }
 
+print_service_logs() {
+  local svc="$1"
+  log "Últimos logs de $svc:"
+  $SUDO_PREFIX $DOCKER_CMD service logs --timestamps --tail 200 "$svc" \
+    2>&1 | tee -a "$LOG" || log "ADVERTENCIA: no fue posible obtener logs de $svc"
+}
+
 check_cmd() { command -v "$1" >/dev/null 2>&1 || { log "ERROR: required command '$1' not found"; exit 1; } }
 
 
@@ -492,6 +499,7 @@ while read -r line; do
     else
       log "ERROR: $svc_name no alcanzo $svc_rep/$svc_rep"
       $SUDO_PREFIX $DOCKER_CMD service ps --no-trunc "$svc_name" 2>&1 | tee -a "$LOG" || true
+      print_service_logs "$svc_name"
       exit 1
     fi
   else

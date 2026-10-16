@@ -83,6 +83,12 @@ elif command -v sudo >/dev/null 2>&1 && sudo -n docker info >/dev/null 2>&1; the
 else die "El usuario no tiene acceso a Docker y sudo requiere interaccion."; fi
 docker_cmd() { "${DOCKER[@]}" "$@"; }
 log "update_images.sh version $SCRIPT_VERSION"
+print_service_logs() {
+  local svc="$1"
+  log "Ultimos logs de $svc:"
+  docker_cmd service logs --timestamps --tail 200 "$svc" \
+    2>&1 | tee -a "$LOG_FILE" || log "ADVERTENCIA: no fue posible obtener logs de $svc."
+}
 stack_exists() { docker_cmd stack ls --format '{{.Name}}' 2>/dev/null | grep -Fxq "$STACK_NAME"; }
 is_manager() { [ "$(docker_cmd info --format '{{.Swarm.ControlAvailable}}' 2>/dev/null || true)" = true ]; }
 prepare_bind_dirs() {
@@ -320,6 +326,7 @@ verify_or_rollback() {
     docker_cmd service inspect --format '  {{if .UpdateStatus}}{{.UpdateStatus.State}}: {{.UpdateStatus.Message}}{{else}}sin UpdateStatus{{end}}' "$svc" 2>&1 | tee -a "$LOG_FILE" || true
     log "Ultimas tareas de $svc:"
     docker_cmd service ps --no-trunc --format '  {{.Name}} | {{.CurrentState}} | {{.Error}}' "$svc" 2>&1 | head -n 8 | tee -a "$LOG_FILE" || true
+    print_service_logs "$svc"
     case "$update_state" in
       rollback_*|rollback-paused)
         log "Docker ya intento el rollback de $svc; no se solicitara otro." ;;
@@ -348,6 +355,8 @@ restore_replicas() {
         log "Esperando que $svc quede estable antes de continuar..."
         if ! wait_healthy "$svc"; then
           log "ERROR: $svc no quedo estable durante la restauracion secuencial."
+          docker_cmd service ps --no-trunc "$svc" 2>&1 | tee -a "$LOG_FILE" || true
+          print_service_logs "$svc"
           return 1
         fi
       fi
