@@ -334,6 +334,7 @@ services:
       AUTH_PUBLIC_KEY_PATH: /run/secrets/auth_public_key.pem
       SERVICE_PUBLIC_KEY_PATH: /app/keys/restaurant_public_key.pem
       SERVICE_PRIVATE_KEY_PATH: /app/keys/restaurant_private_key.pem
+      AUTH_ROLE_REGISTRATION_ENABLED: false
     volumes:
       - losmolinos-restaurante-uploads:/app/uploads
       - losmolinos-restaurante-logs:/var/log/inventario

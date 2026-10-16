@@ -552,6 +552,25 @@ elapsed=0
 all_up=0
 stable_elapsed=0
 previous_tasks=""
+
+report_restarted_services() {
+  local previous="$1" current="$2" task_name task_id old_id svc changed=""
+  while read -r task_name task_id; do
+    [ -n "$task_name" ] || continue
+    old_id="$(awk -v name="$task_name" '$1 == name {print $2; exit}' <<< "$previous")"
+    if [ -n "$old_id" ] && [ "$old_id" != "$task_id" ]; then
+      svc="${task_name%.*}"
+      changed+="${svc}"$'\n'
+    fi
+  done <<< "$current"
+  while read -r svc; do
+    [ -n "$svc" ] || continue
+    log "ERROR: se reinició el servicio $svc; mostrando diagnóstico automático."
+    $SUDO_PREFIX $DOCKER_CMD service ps --no-trunc "$svc" 2>&1 | tee -a "$LOG" || true
+    print_service_logs "$svc"
+  done < <(printf '%s' "$changed" | sort -u)
+}
+
 while [ $elapsed -le $MAX_WAIT_UP ]; do
   not_ready=$($SUDO_PREFIX $DOCKER_CMD service ls \
     --filter label=com.docker.stack.namespace=$MAIN_STACK \
@@ -563,7 +582,10 @@ while [ $elapsed -le $MAX_WAIT_UP ]; do
     if [ -n "$current_tasks" ] && [ "$current_tasks" = "$previous_tasks" ]; then
       stable_elapsed=$((stable_elapsed+5))
     else
-      [ -n "$previous_tasks" ] && log "Se detectó un reinicio; reiniciando comprobación de estabilidad."
+      if [ -n "$previous_tasks" ]; then
+        log "Se detectó un reinicio; reiniciando comprobación de estabilidad."
+        report_restarted_services "$previous_tasks" "$current_tasks"
+      fi
       previous_tasks="$current_tasks"
       stable_elapsed=0
     fi
@@ -576,7 +598,6 @@ while [ $elapsed -le $MAX_WAIT_UP ]; do
     fi
   else
     stable_elapsed=0
-    previous_tasks=""
     if [ $((elapsed % 30)) -eq 0 ]; then
       log "Servicios pendientes: $not_ready (${elapsed}s)"
     fi
