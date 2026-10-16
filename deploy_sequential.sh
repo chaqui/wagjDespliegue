@@ -459,6 +459,26 @@ if [ $API_OK -ne 1 ]; then
   exit 1
 fi
 
+# Restaurar los demás servicios estrictamente uno por uno. La llave ya fue
+# validada; aun así se espera la convergencia de cada servicio antes de iniciar
+# el siguiente para limitar picos de memoria y detectar fallos temprano.
+wait_service_replicas() {
+  local svc="$1" wanted="$2" elapsed=0 running state
+  while [ "$elapsed" -le 300 ]; do
+    running=$($SUDO_PREFIX $DOCKER_CMD service ps --filter desired-state=running \
+      --format '{{.CurrentState}}' "$svc" 2>/dev/null | grep -c '^Running' || true)
+    state=$($SUDO_PREFIX $DOCKER_CMD service inspect \
+      --format '{{if .UpdateStatus}}{{.UpdateStatus.State}}{{end}}' "$svc" 2>/dev/null || true)
+    case "$state" in
+      paused|rollback_paused|rollback_completed) return 1 ;;
+    esac
+    if [ "$running" -eq "$wanted" ]; then return 0; fi
+    sleep 5
+    elapsed=$((elapsed+5))
+  done
+  return 1
+}
+
 # restore replicas for other services
 log "Restaurando réplicas para otros servicios"
 while read -r line; do
@@ -466,9 +486,17 @@ while read -r line; do
   svc_rep=$(echo "$line" | awk '{print $2}')
   log "Iniciando escala de $svc_name -> $svc_rep"
   if $SUDO_PREFIX $DOCKER_CMD service update --detach=true --replicas "$svc_rep" "$svc_name" 2>&1 | tee -a "$LOG"; then
-    log "Escalado completado para $svc_name -> $svc_rep"
+    log "Esperando que $svc_name alcance $svc_rep/$svc_rep antes de continuar"
+    if wait_service_replicas "$svc_name" "$svc_rep"; then
+      log "Escalado completado para $svc_name -> $svc_rep"
+    else
+      log "ERROR: $svc_name no alcanzo $svc_rep/$svc_rep"
+      $SUDO_PREFIX $DOCKER_CMD service ps --no-trunc "$svc_name" 2>&1 | tee -a "$LOG" || true
+      exit 1
+    fi
   else
     log "ERROR: fallo al escalar $svc_name a $svc_rep"
+    exit 1
   fi
 done < "$MAPPING_FILE"
 

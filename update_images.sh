@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_VERSION="2026.10.16.3"
 STACK_NAME="${STACK_NAME:-sistema}"
 COMPOSE_FILE="${COMPOSE_FILE:-${SCRIPT_DIR}/docker-stack.yml}"
 INITIAL_DEPLOY_SCRIPT="${INITIAL_DEPLOY_SCRIPT:-${SCRIPT_DIR}/deploy_sequential.sh}"
@@ -81,6 +82,7 @@ if docker info >/dev/null 2>&1; then DOCKER=(docker)
 elif command -v sudo >/dev/null 2>&1 && sudo -n docker info >/dev/null 2>&1; then DOCKER=(sudo -E docker)
 else die "El usuario no tiene acceso a Docker y sudo requiere interaccion."; fi
 docker_cmd() { "${DOCKER[@]}" "$@"; }
+log "update_images.sh version $SCRIPT_VERSION"
 stack_exists() { docker_cmd stack ls --format '{{.Name}}' 2>/dev/null | grep -Fxq "$STACK_NAME"; }
 is_manager() { [ "$(docker_cmd info --format '{{.Swarm.ControlAvailable}}' 2>/dev/null || true)" = true ]; }
 prepare_bind_dirs() {
@@ -336,7 +338,21 @@ save_replicas() {
   )
 }
 restore_replicas() {
-  local svc wanted current; while IFS='|' read -r svc wanted; do current="$(desired_replicas "$svc")"; if [ "$current" != "$wanted" ]; then log "Restaurando replicas de $svc: $current -> $wanted"; docker_cmd service scale "${svc}=${wanted}" >/dev/null; fi; done < "$1"
+  local svc wanted current
+  while IFS='|' read -r svc wanted; do
+    current="$(desired_replicas "$svc")"
+    if [ "$current" != "$wanted" ]; then
+      log "Restaurando replicas de $svc: $current -> $wanted"
+      docker_cmd service scale --detach=true "${svc}=${wanted}" 2>&1 | tee -a "$LOG_FILE"
+      if [ "$wanted" -gt 0 ]; then
+        log "Esperando que $svc quede estable antes de continuar..."
+        if ! wait_healthy "$svc"; then
+          log "ERROR: $svc no quedo estable durante la restauracion secuencial."
+          return 1
+        fi
+      fi
+    fi
+  done < "$1"
 }
 sync_env() {
   [ -f "$ENV_FILE" ] || { log "ADVERTENCIA: no existe $ENV_FILE; se omite .env."; return; }
@@ -358,8 +374,10 @@ sync_env() {
   $compose_changed && log "Cambio detectado en docker-stack.yml; se reconciliara el stack."
   $DRY_RUN && { log "DRY-RUN: los cambios no se aplicaron."; return; }
   save_replicas "$replicas"; capture_versions > "$versions"
-  docker_cmd stack deploy --prune --with-registry-auth -c "$COMPOSE_FILE" "$STACK_NAME" 2>&1 | tee -a "$LOG_FILE"
-  restore_replicas "$replicas"; changed_services_since "$versions" > "$services"
+  docker_cmd stack deploy --detach=true --prune --with-registry-auth \
+    -c "$COMPOSE_FILE" "$STACK_NAME" 2>&1 | tee -a "$LOG_FILE"
+  restore_replicas "$replicas" || die "No se pudieron restaurar secuencialmente las replicas previas."
+  changed_services_since "$versions" > "$services"
   local env_updated=(); mapfile -t env_updated < "$services"
   verify_or_rollback "${env_updated[@]}" || die "La actualizacion de .env fallo; se solicitaron rollbacks."
   state_tmp="${ENV_STATE_FILE}.tmp.$$"; cp "$current" "$state_tmp"; chmod 600 "$state_tmp"; mv "$state_tmp" "$ENV_STATE_FILE"

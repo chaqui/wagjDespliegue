@@ -23,6 +23,8 @@ La suma de los límites configurados para los 11 servicios es `1616 MiB` (`1,694
 
 El despliegue inicial exige por defecto `90` segundos continuos sin cambios de tareas antes de considerarlo estable. Los valores pueden ajustarse con `DEPLOY_STABLE_SECONDS` y `DEPLOY_READY_TIMEOUT`; este último tiene un valor predeterminado de `300` segundos.
 
+En el YAML solamente `auth-service` inicia con una réplica. Los demás servicios comienzan en cero para garantizar que la llave pública exista antes de montarla. El script los restaura uno por uno, espera que cada servicio converja y usa comandos desacoplados para que el progreso interactivo de Docker no bloquee la ejecución.
+
 ## Requisitos
 
 - Docker Engine en modo Swarm.

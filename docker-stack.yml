@@ -208,7 +208,7 @@ services:
     networks: [public-net]
     deploy:
       <<: *deploy-defaults
-      replicas: 1
+      replicas: 0
       resources: {limits: {cpus: "1", memory: 48M}}
       labels:
         - traefik.enable=true
@@ -280,7 +280,7 @@ services:
     networks: [public-net]
     deploy:
       <<: *deploy-defaults
-      replicas: 1
+      replicas: 0
       resources: {limits: {cpus: "1", memory: 48M}}
       labels:
         - traefik.enable=true
@@ -346,7 +346,7 @@ services:
     networks: [public-net]
     deploy:
       <<: *deploy-defaults
-      replicas: 1
+      replicas: 0
       resources: {limits: {cpus: "1", memory: 48M}}
       labels:
         - traefik.enable=true
@@ -412,7 +412,7 @@ services:
     networks: [public-net]
     deploy:
       <<: *deploy-defaults
-      replicas: 1
+      replicas: 0
       resources: {limits: {cpus: "1", memory: 48M}}
       labels:
         - traefik.enable=true
