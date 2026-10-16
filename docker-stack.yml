@@ -168,6 +168,8 @@ services:
     environment:
       <<: *backend-environment
       DB_SCHEMA: LosMolinosStore
+      DB_URL: ${DB_URL}?currentSchema=LosMolinosStore
+      SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=LosMolinosStore
       SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: LosMolinosStore
       SPRING_DATASOURCE_HIKARI_SCHEMA: LosMolinosStore
       SERVER_PORT: "8101"
@@ -242,6 +244,8 @@ services:
     environment:
       <<: *backend-environment
       DB_SCHEMA: CrecilandiaStore
+      DB_URL: ${DB_URL}?currentSchema=CrecilandiaStore
+      SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=CrecilandiaStore
       SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: CrecilandiaStore
       SPRING_DATASOURCE_HIKARI_SCHEMA: CrecilandiaStore
       SERVER_PORT: "8102"
@@ -316,6 +320,8 @@ services:
     environment:
       <<: *backend-environment
       DB_SCHEMA: LosMolinosRestaurante
+      DB_URL: ${DB_URL}?currentSchema=LosMolinosRestaurante
+      SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=LosMolinosRestaurante
       SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: LosMolinosRestaurante
       SPRING_DATASOURCE_HIKARI_SCHEMA: LosMolinosRestaurante
       SERVER_PORT: "8103"
@@ -384,6 +390,8 @@ services:
     environment:
       <<: *backend-environment
       DB_SCHEMA: CrecilandiaRestaurante
+      DB_URL: ${DB_URL}?currentSchema=CrecilandiaRestaurante
+      SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=CrecilandiaRestaurante
       SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: CrecilandiaRestaurante
       SPRING_DATASOURCE_HIKARI_SCHEMA: CrecilandiaRestaurante
       SERVER_PORT: "8104"
