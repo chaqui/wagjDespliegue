@@ -306,7 +306,7 @@ services:
     logging: *default-logging
 
   losmolinos-restaurante-backend:
-    image: ghcr.io/chaqui/restaurant-java:main-775f77b
+    image: ghcr.io/chaqui/restaurant-java:main
     environment:
       <<: *backend-environment
       DB_SCHEMA: LosMolinosRestaurante
@@ -372,7 +372,7 @@ services:
     logging: *default-logging
 
   crecilandia-restaurante-backend:
-    image: ghcr.io/chaqui/restaurant-java:main-775f77b
+    image: ghcr.io/chaqui/restaurant-java:main
     environment:
       <<: *backend-environment
       DB_SCHEMA: CrecilandiaRestaurante
