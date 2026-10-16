@@ -237,7 +237,7 @@ services:
         - traefik.http.routers.losmolinos-store.priority=10
         - traefik.http.routers.losmolinos-store.service=losmolinos-store-frontend
         - traefik.http.middlewares.strip-losmolinos-store.stripprefix.prefixes=/losmolinos/store
-        - traefik.http.services.losmolinos-store-frontend.loadbalancer.server.port=3101
+        - traefik.http.services.losmolinos-store-frontend.loadbalancer.server.port=3000
     logging: *default-logging
 
   crecilandia-store-backend:
@@ -314,7 +314,7 @@ services:
         - traefik.http.routers.crecilandia-store.priority=10
         - traefik.http.routers.crecilandia-store.service=crecilandia-store-frontend
         - traefik.http.middlewares.strip-crecilandia-store.stripprefix.prefixes=/crecilandia/store
-        - traefik.http.services.crecilandia-store-frontend.loadbalancer.server.port=3102
+        - traefik.http.services.crecilandia-store-frontend.loadbalancer.server.port=3000
     logging: *default-logging
 
   losmolinos-restaurante-backend:
@@ -373,6 +373,7 @@ services:
     image: ghcr.io/chaqui/fronted-restaurante:main
     environment:
       <<: *frontend-environment
+      ENABLE_SSR: "true"
       PORT: "3103"
       SERVER_PORT: "3103"
       SERVICE_PORT: "3103"
@@ -453,6 +454,7 @@ services:
     image: ghcr.io/chaqui/fronted-restaurante:main
     environment:
       <<: *frontend-environment
+      ENABLE_SSR: "true"
       PORT: "3104"
       SERVER_PORT: "3104"
       SERVICE_PORT: "3104"

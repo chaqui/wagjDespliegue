@@ -6,8 +6,8 @@ Stack Docker Swarm para cuatro unidades de negocio aisladas por esquema PostgreS
 
 | Unidad | Frontend | Backend | Esquema PostgreSQL |
 |---|---|---|---|
-| Los Molinos Store | `/losmolinos/store` · `3101` | `/losmolinos/store-api` · `8101` | `LosMolinosStore` |
-| Crecilandia Store | `/crecilandia/store` · `3102` | `/crecilandia/store-api` · `8102` | `CrecilandiaStore` |
+| Los Molinos Store | `/losmolinos/store` · `3000` | `/losmolinos/store-api` · `8101` | `LosMolinosStore` |
+| Crecilandia Store | `/crecilandia/store` · `3000` | `/crecilandia/store-api` · `8102` | `CrecilandiaStore` |
 | Los Molinos Restaurante | `/losmolinos/restaurante` · `3103` | `/losmolinos/restaurante-api` · `8001` | `LosMolinosRestaurante` |
 | Crecilandia Restaurante | `/crecilandia/restaurante` · `3104` | `/crecilandia/restaurante-api` · `8001` | `CrecilandiaRestaurante` |
 
