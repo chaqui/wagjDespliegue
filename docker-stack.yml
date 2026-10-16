@@ -319,11 +319,11 @@ services:
     image: ghcr.io/chaqui/restaurant-java:main
     environment:
       <<: *backend-environment
-      DB_SCHEMA: LosMolinosRestaurante
-      DB_URL: ${DB_URL}?currentSchema=LosMolinosRestaurante
-      SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=LosMolinosRestaurante
-      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: LosMolinosRestaurante
-      SPRING_DATASOURCE_HIKARI_SCHEMA: LosMolinosRestaurante
+      DB_SCHEMA: losmolinosrestaurante
+      DB_URL: ${DB_URL}?currentSchema=losmolinosrestaurante
+      SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=losmolinosrestaurante
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: losmolinosrestaurante
+      SPRING_DATASOURCE_HIKARI_SCHEMA: losmolinosrestaurante
       SERVER_PORT: "8103"
       SERVICE_PORT: "8103"
       SERVICE_NAME: losmolinos-restaurante-backend
@@ -389,11 +389,11 @@ services:
     image: ghcr.io/chaqui/restaurant-java:main
     environment:
       <<: *backend-environment
-      DB_SCHEMA: CrecilandiaRestaurante
-      DB_URL: ${DB_URL}?currentSchema=CrecilandiaRestaurante
-      SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=CrecilandiaRestaurante
-      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: CrecilandiaRestaurante
-      SPRING_DATASOURCE_HIKARI_SCHEMA: CrecilandiaRestaurante
+      DB_SCHEMA: crecilandiarestaurante
+      DB_URL: ${DB_URL}?currentSchema=crecilandiarestaurante
+      SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=crecilandiarestaurante
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: crecilandiarestaurante
+      SPRING_DATASOURCE_HIKARI_SCHEMA: crecilandiarestaurante
       SERVER_PORT: "8104"
       SERVICE_PORT: "8104"
       SERVICE_NAME: crecilandia-restaurante-backend
