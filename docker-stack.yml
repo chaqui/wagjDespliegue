@@ -92,7 +92,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_SCHEMA=${DB_SCHEMA}
       - JWT_SECRET=${JWT_SECRET}
-      - JAVA_OPTS=-Xms96m -Xmx224m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
+      - JAVA_OPTS=-Xms64m -Xmx176m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
       - SERVER_FORWARD_HEADERS_STRATEGY=FRAMEWORK
       - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=DEBUG
     volumes:
@@ -104,7 +104,7 @@ services:
       <<: *deploy-defaults
       replicas: 1
       placement: {preferences: [{spread: node.id}]}
-      resources: {limits: {cpus: "1", memory: 352M}}
+      resources: {limits: {cpus: "1", memory: 288M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.auth.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/usuarios-api`)"
@@ -169,7 +169,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 0
-      resources: {limits: {cpus: "1", memory: 184M}}
+      resources: {limits: {cpus: "1", memory: 224M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.losmolinos-store-api.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/store-api`)"
@@ -241,7 +241,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 0
-      resources: {limits: {cpus: "1", memory: 184M}}
+      resources: {limits: {cpus: "1", memory: 224M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.crecilandia-store-api.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/store-api`)"
@@ -313,7 +313,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 0
-      resources: {limits: {cpus: "1", memory: 184M}}
+      resources: {limits: {cpus: "1", memory: 224M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.losmolinos-restaurante-api.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/restaurante-api`)"
@@ -379,7 +379,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 0
-      resources: {limits: {cpus: "1", memory: 184M}}
+      resources: {limits: {cpus: "1", memory: 224M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.crecilandia-restaurante-api.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/restaurante-api`)"

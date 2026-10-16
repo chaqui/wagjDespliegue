@@ -1,5 +1,6 @@
 .env
 .env.applied.sha256
+.compose.applied.sha256
 .env.hash.key
 .jwt-secret
 .digests/

@@ -7,6 +7,7 @@ COMPOSE_FILE="${COMPOSE_FILE:-${SCRIPT_DIR}/docker-stack.yml}"
 INITIAL_DEPLOY_SCRIPT="${INITIAL_DEPLOY_SCRIPT:-${SCRIPT_DIR}/deploy_sequential.sh}"
 ENV_FILE="${ENV_FILE:-${SCRIPT_DIR}/.env}"
 ENV_STATE_FILE="${ENV_STATE_FILE:-${SCRIPT_DIR}/.env.applied.sha256}"
+COMPOSE_STATE_FILE="${COMPOSE_STATE_FILE:-${SCRIPT_DIR}/.compose.applied.sha256}"
 ENV_HASH_KEY_FILE="${ENV_HASH_KEY_FILE:-${SCRIPT_DIR}/.env.hash.key}"
 JWT_SECRET_FILE="${JWT_SECRET_FILE:-${SCRIPT_DIR}/.jwt-secret}"
 LOG_FILE="${LOG_FILE:-${SCRIPT_DIR}/update-images.log}"
@@ -254,6 +255,10 @@ hash_value() {
   elif command -v sha256sum >/dev/null; then printf '%s' "$1" | sha256sum | awk '{print $1}'
   else printf '%s' "$1" | shasum -a 256 | awk '{print $1}'; fi
 }
+file_checksum() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+  else shasum -a 256 "$1" | awk '{print $1}'; fi
+}
 build_env_state() {
   local output="$1" key; : > "$output"
   while read -r key; do printf '%s=%s\n' "$key" "$(hash_value "${!key-}")"; done < <(
@@ -336,20 +341,29 @@ restore_replicas() {
 sync_env() {
   [ -f "$ENV_FILE" ] || { log "ADVERTENCIA: no existe $ENV_FILE; se omite .env."; return; }
   load_env; normalize_runtime_config; generate_traefik_auth; generate_database_url; generate_jwt_secret; validate_env; ensure_hash_key
-  local current changes replicas versions services type key svc state_tmp
+  local current changes replicas versions services type key svc state_tmp compose_hash previous_compose_hash compose_changed=false
   current="$(mktemp /tmp/env-current.XXXXXX)"; changes="$(mktemp /tmp/env-changes.XXXXXX)"; replicas="$(mktemp /tmp/replicas.XXXXXX)"
   versions="$(mktemp /tmp/versions.XXXXXX)"; services="$(mktemp /tmp/env-services.XXXXXX)"; TMP_FILES+=("$current" "$changes" "$replicas" "$versions" "$services")
   build_env_state "$current"; env_changes "$current" > "$changes"
-  [ -s "$changes" ] || { log "Variables de .env sin cambios."; return; }
-  log "Cambios detectados en .env:"
-  while IFS='|' read -r type key; do log "  - $key ($type)"; while read -r svc; do [ -n "$svc" ] && log "      afecta: ${STACK_NAME}_$svc"; done < <(services_for_variable "$key" | sort -u); done < "$changes"
-  $DRY_RUN && { log "DRY-RUN: las variables no se aplicaron."; return; }
+  compose_hash="$(file_checksum "$COMPOSE_FILE")"
+  previous_compose_hash="$(cat "$COMPOSE_STATE_FILE" 2>/dev/null || true)"
+  [ "$compose_hash" = "$previous_compose_hash" ] || compose_changed=true
+  if [ ! -s "$changes" ] && ! $compose_changed; then log "Variables y docker-stack.yml sin cambios."; return; fi
+  if [ -s "$changes" ]; then
+    log "Cambios detectados en .env:"
+    while IFS='|' read -r type key; do log "  - $key ($type)"; while read -r svc; do [ -n "$svc" ] && log "      afecta: ${STACK_NAME}_$svc"; done < <(services_for_variable "$key" | sort -u); done < "$changes"
+  else
+    log "Variables de .env sin cambios."
+  fi
+  $compose_changed && log "Cambio detectado en docker-stack.yml; se reconciliara el stack."
+  $DRY_RUN && { log "DRY-RUN: los cambios no se aplicaron."; return; }
   save_replicas "$replicas"; capture_versions > "$versions"
   docker_cmd stack deploy --prune --with-registry-auth -c "$COMPOSE_FILE" "$STACK_NAME" 2>&1 | tee -a "$LOG_FILE"
   restore_replicas "$replicas"; changed_services_since "$versions" > "$services"
   local env_updated=(); mapfile -t env_updated < "$services"
   verify_or_rollback "${env_updated[@]}" || die "La actualizacion de .env fallo; se solicitaron rollbacks."
   state_tmp="${ENV_STATE_FILE}.tmp.$$"; cp "$current" "$state_tmp"; chmod 600 "$state_tmp"; mv "$state_tmp" "$ENV_STATE_FILE"
+  state_tmp="${COMPOSE_STATE_FILE}.tmp.$$"; printf '%s\n' "$compose_hash" > "$state_tmp"; chmod 600 "$state_tmp"; mv "$state_tmp" "$COMPOSE_STATE_FILE"
   UPDATED_SERVICES+=("${env_updated[@]}"); log "Variables aplicadas y verificadas."
 }
 read_service_images() {
@@ -431,6 +445,8 @@ if ! stack_exists; then
     tmp="$(mktemp /tmp/env-initial.XXXXXX)"
     build_env_state "$tmp"
     mv "$tmp" "$ENV_STATE_FILE"
+    printf '%s\n' "$(file_checksum "$COMPOSE_FILE")" > "$COMPOSE_STATE_FILE"
+    chmod 600 "$COMPOSE_STATE_FILE"
   fi
   notify success "Primer despliegue completado."; exit
 fi
