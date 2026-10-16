@@ -400,10 +400,9 @@ services:
         - "traefik.http.routers.losmolinos-restaurante.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/restaurante`)"
         - traefik.http.routers.losmolinos-restaurante.entrypoints=websecure
         - traefik.http.routers.losmolinos-restaurante.tls.certresolver=letsencrypt
-        - traefik.http.routers.losmolinos-restaurante.middlewares=rate-limit,strip-losmolinos-restaurante
+        - traefik.http.routers.losmolinos-restaurante.middlewares=rate-limit
         - traefik.http.routers.losmolinos-restaurante.priority=10
         - traefik.http.routers.losmolinos-restaurante.service=losmolinos-restaurante-frontend
-        - traefik.http.middlewares.strip-losmolinos-restaurante.stripprefix.prefixes=/losmolinos/restaurante
         - traefik.http.services.losmolinos-restaurante-frontend.loadbalancer.server.port=3103
     logging: *default-logging
 
@@ -482,10 +481,9 @@ services:
         - "traefik.http.routers.crecilandia-restaurante.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/restaurante`)"
         - traefik.http.routers.crecilandia-restaurante.entrypoints=websecure
         - traefik.http.routers.crecilandia-restaurante.tls.certresolver=letsencrypt
-        - traefik.http.routers.crecilandia-restaurante.middlewares=rate-limit,strip-crecilandia-restaurante
+        - traefik.http.routers.crecilandia-restaurante.middlewares=rate-limit
         - traefik.http.routers.crecilandia-restaurante.priority=10
         - traefik.http.routers.crecilandia-restaurante.service=crecilandia-restaurante-frontend
-        - traefik.http.middlewares.strip-crecilandia-restaurante.stripprefix.prefixes=/crecilandia/restaurante
         - traefik.http.services.crecilandia-restaurante-frontend.loadbalancer.server.port=3104
     logging: *default-logging
 
