@@ -3,7 +3,8 @@ x-logging: &default-logging
   options: {max-size: "10m", max-file: "3"}
 
 x-deploy-defaults: &deploy-defaults
-  update_config: {parallelism: 1, delay: 10s, failure_action: rollback, monitor: 30s, order: start-first}
+  # Evita mantener simultáneamente la tarea antigua y la nueva en hosts con poca memoria.
+  update_config: {parallelism: 1, delay: 10s, failure_action: rollback, monitor: 30s, order: stop-first}
   restart_policy: {condition: on-failure, delay: 5s, max_attempts: 3, window: 120s}
 
 x-backend-environment: &backend-environment
@@ -16,12 +17,12 @@ x-backend-environment: &backend-environment
   SERVER_FORWARD_HEADERS_STRATEGY: FRAMEWORK
   LOGGING_LEVEL_ROOT: INFO
   LOGGING_LEVEL_ORG_SPRINGFRAMEWORK: INFO
-  LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY: DEBUG
-  LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: DEBUG
-  LOGGING_LEVEL_ORG_HIBERNATE_SQL: DEBUG
-  LOGGING_LEVEL_ORG_HIBERNATE_TYPE_DESCRIPTOR_SQL: TRACE
-  SPRING_JPA_SHOW_SQL: "true"
-  SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: "true"
+  LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY: INFO
+  LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: INFO
+  LOGGING_LEVEL_ORG_HIBERNATE_SQL: INFO
+  LOGGING_LEVEL_ORG_HIBERNATE_TYPE_DESCRIPTOR_SQL: INFO
+  SPRING_JPA_SHOW_SQL: "false"
+  SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: "false"
   AUTH_SERVICE_URL: http://auth-service:8082
 
 x-frontend-environment: &frontend-environment
@@ -69,7 +70,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 0
-      resources: {limits: {cpus: "0.5", memory: 80M}}
+      resources: {limits: {cpus: "0.5", memory: 64M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.dashboard.rule=Host(`grupowagj.duckdns.org`) && (PathPrefix(`/traefik/api`) || PathPrefix(`/traefik/dashboard`))"
@@ -94,7 +95,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - JAVA_OPTS=-Xms64m -Xmx176m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled
       - SERVER_FORWARD_HEADERS_STRATEGY=FRAMEWORK
-      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=DEBUG
+      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=INFO
     volumes:
       - {type: bind, source: ./keys, target: /app/keys}
       - {type: bind, source: ./logs/auth, target: /app/logs}
@@ -136,7 +137,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 0
-      resources: {limits: {cpus: "0.5", memory: 64M}}
+      resources: {limits: {cpus: "0.5", memory: 48M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.frontend-usuarios.rule=Host(`grupowagj.duckdns.org`) && (PathPrefix(`/usuarios`) || Path(`/`))"
@@ -169,7 +170,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 0
-      resources: {limits: {cpus: "1", memory: 224M}}
+      resources: {limits: {cpus: "1", memory: 256M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.losmolinos-store-api.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/store-api`)"
@@ -208,7 +209,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 1
-      resources: {limits: {cpus: "1", memory: 72M}}
+      resources: {limits: {cpus: "1", memory: 48M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.losmolinos-store.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/store`)"
@@ -241,7 +242,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 0
-      resources: {limits: {cpus: "1", memory: 224M}}
+      resources: {limits: {cpus: "1", memory: 256M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.crecilandia-store-api.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/store-api`)"
@@ -280,7 +281,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 1
-      resources: {limits: {cpus: "1", memory: 72M}}
+      resources: {limits: {cpus: "1", memory: 48M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.crecilandia-store.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/store`)"
@@ -294,7 +295,7 @@ services:
     logging: *default-logging
 
   losmolinos-restaurante-backend:
-    image: ghcr.io/chaqui/inventario-backend-wagj:main-1284a0a
+    image: ghcr.io/chaqui/restaurant-java:main-775f77b
     environment:
       <<: *backend-environment
       DB_SCHEMA: LosMolinosRestaurante
@@ -313,7 +314,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 0
-      resources: {limits: {cpus: "1", memory: 224M}}
+      resources: {limits: {cpus: "1", memory: 256M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.losmolinos-restaurante-api.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/restaurante-api`)"
@@ -346,7 +347,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 1
-      resources: {limits: {cpus: "1", memory: 72M}}
+      resources: {limits: {cpus: "1", memory: 48M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.losmolinos-restaurante.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/restaurante`)"
@@ -360,7 +361,7 @@ services:
     logging: *default-logging
 
   crecilandia-restaurante-backend:
-    image: ghcr.io/chaqui/inventario-backend-wagj:main-1284a0a
+    image: ghcr.io/chaqui/restaurant-java:main-775f77b
     environment:
       <<: *backend-environment
       DB_SCHEMA: CrecilandiaRestaurante
@@ -379,7 +380,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 0
-      resources: {limits: {cpus: "1", memory: 224M}}
+      resources: {limits: {cpus: "1", memory: 256M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.crecilandia-restaurante-api.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/restaurante-api`)"
@@ -412,7 +413,7 @@ services:
     deploy:
       <<: *deploy-defaults
       replicas: 1
-      resources: {limits: {cpus: "1", memory: 72M}}
+      resources: {limits: {cpus: "1", memory: 48M}}
       labels:
         - traefik.enable=true
         - "traefik.http.routers.crecilandia-restaurante.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/restaurante`)"

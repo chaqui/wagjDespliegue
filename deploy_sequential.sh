@@ -267,11 +267,10 @@ prepare_dirs() {
       log "Carpeta $d ya existe"
     fi
   done
-  # Asegurar permisos mínimos de keys
+  # Permitir escritura en el directorio sin alterar los permisos de los PEM
+  # existentes, que pueden pertenecer al usuario del contenedor o a root.
   if [ -d "./keys" ]; then
-    # Permitir que el proceso dentro del contenedor pueda escribir en ./keys
-    # (algunas imágenes de contenedor ejecutan con un UID distinto al host)
-    chmod -R 777 ./keys || true
+    chmod 777 ./keys || true
   fi
 }
 
@@ -473,27 +472,55 @@ while read -r line; do
   fi
 done < "$MAPPING_FILE"
 
-# Esperar que todos los servicios restaurados estén running
-log "Esperando que todos los servicios estén en ejecución (máx 120s)..."
-MAX_WAIT_UP=120
+# Esperar que todos los servicios restaurados estén running y permanezcan
+# estables. Un 1/1 momentáneo no basta: una aplicación puede iniciar y salir
+# segundos después, mientras Swarm crea inmediatamente otra tarea.
+MAX_WAIT_UP="${DEPLOY_READY_TIMEOUT:-300}"
+STABLE_REQUIRED="${DEPLOY_STABLE_SECONDS:-90}"
+log "Esperando que todos los servicios estén en ejecución y estables durante ${STABLE_REQUIRED}s (máx ${MAX_WAIT_UP}s)..."
 elapsed=0
 all_up=0
+stable_elapsed=0
+previous_tasks=""
 while [ $elapsed -le $MAX_WAIT_UP ]; do
   not_ready=$($SUDO_PREFIX $DOCKER_CMD service ls \
     --filter label=com.docker.stack.namespace=$MAIN_STACK \
     --format '{{.Name}} {{.Replicas}}' 2>/dev/null | \
     awk -F'[ /]' '{if($2!=0 && $2!=$3) print $1}' || true)
   if [ -z "$not_ready" ]; then
-    all_up=1
-    break
+    current_tasks=$($SUDO_PREFIX $DOCKER_CMD stack ps "$MAIN_STACK" \
+      --filter desired-state=running --format '{{.Name}} {{.ID}}' 2>/dev/null | sort || true)
+    if [ -n "$current_tasks" ] && [ "$current_tasks" = "$previous_tasks" ]; then
+      stable_elapsed=$((stable_elapsed+5))
+    else
+      [ -n "$previous_tasks" ] && log "Se detectó un reinicio; reiniciando comprobación de estabilidad."
+      previous_tasks="$current_tasks"
+      stable_elapsed=0
+    fi
+    if [ "$stable_elapsed" -ge "$STABLE_REQUIRED" ]; then
+      all_up=1
+      break
+    fi
+    if [ $((elapsed % 30)) -eq 0 ]; then
+      log "Servicios en ejecución; estabilidad ${stable_elapsed}/${STABLE_REQUIRED}s."
+    fi
+  else
+    stable_elapsed=0
+    previous_tasks=""
+    if [ $((elapsed % 30)) -eq 0 ]; then
+      log "Servicios pendientes: $not_ready (${elapsed}s)"
+    fi
   fi
-  log "Servicios pendientes: $not_ready (${elapsed}s)"
   sleep 5
   elapsed=$((elapsed+5))
 done
 if [ $all_up -ne 1 ]; then
-  log "ADVERTENCIA: algunos servicios no alcanzaron el estado deseado en ${MAX_WAIT_UP}s:"
+  log "ERROR: los servicios no permanecieron estables durante ${STABLE_REQUIRED}s dentro del límite de ${MAX_WAIT_UP}s:"
   $SUDO_PREFIX $DOCKER_CMD service ls --filter label=com.docker.stack.namespace=$MAIN_STACK | tee -a "$LOG"
+  log "Tareas fallidas más recientes:"
+  $SUDO_PREFIX $DOCKER_CMD stack ps "$MAIN_STACK" --no-trunc \
+    --filter desired-state=shutdown --format '{{.Name}} | {{.CurrentState}} | {{.Error}}' 2>&1 | head -n 20 | tee -a "$LOG" || true
+  exit 1
 else
-  log "Todos los servicios están en ejecución."
+  log "Todos los servicios permanecieron estables durante ${STABLE_REQUIRED}s."
 fi
