@@ -331,17 +331,22 @@ services:
       SERVICE_NAME: losmolinos-restaurante-backend
       SERVICE_URL: https://grupowagj.duckdns.org/losmolinos/restaurante 
       SERVICE_BASE_URL: http://losmolinos-restaurante-backend:8001
-      AUTH_PUBLIC_KEY_PATH: /app/keys/public_key.pem
+      AUTH_PUBLIC_KEY_PATH: /run/secrets/auth_public_key.pem
       SERVICE_PUBLIC_KEY_PATH: /app/keys/restaurant_public_key.pem
       SERVICE_PRIVATE_KEY_PATH: /app/keys/restaurant_private_key.pem
     volumes:
       - losmolinos-restaurante-uploads:/app/uploads
       - losmolinos-restaurante-logs:/var/log/inventario
       - {type: bind, source: ./certs, target: /app/certs, read_only: true}
-      - losmolinos-restaurante-keys:/app/keys
-      - {type: bind, source: ./keys/public_key.pem, target: /app/keys/public_key.pem, read_only: true}
+      - {type: bind, source: /opt/wagj/keys/losmolinos-restaurante, target: /app/keys}
       - {type: bind, source: ./logs/losmolinos-restaurante-backend, target: /app/logs}
       - {type: bind, source: ./data/losmolinos-restaurante, target: /uploads}
+    secrets:
+      - source: auth_public_key
+        target: auth_public_key.pem
+        uid: "1000"
+        gid: "1000"
+        mode: 0444
     networks: [public-net]
     deploy:
       <<: *deploy-defaults
@@ -406,17 +411,22 @@ services:
       SERVICE_NAME: crecilandia-restaurante-backend
       SERVICE_URL: https://grupowagj.duckdns.org/crecilandia/restaurante
       SERVICE_BASE_URL: http://crecilandia-restaurante-backend:8001
-      AUTH_PUBLIC_KEY_PATH: /app/keys/public_key.pem
+      AUTH_PUBLIC_KEY_PATH: /run/secrets/auth_public_key.pem
       SERVICE_PUBLIC_KEY_PATH: /app/keys/restaurant_public_key.pem
       SERVICE_PRIVATE_KEY_PATH: /app/keys/restaurant_private_key.pem
     volumes:
       - crecilandia-restaurante-uploads:/app/uploads
       - crecilandia-restaurante-logs:/var/log/inventario
       - {type: bind, source: ./certs, target: /app/certs, read_only: true}
-      - crecilandia-restaurante-keys:/app/keys
-      - {type: bind, source: ./keys/public_key.pem, target: /app/keys/public_key.pem, read_only: true}
+      - {type: bind, source: /opt/wagj/keys/crecilandia-restaurante, target: /app/keys}
       - {type: bind, source: ./logs/crecilandia-restaurante-backend, target: /app/logs}
       - {type: bind, source: ./data/crecilandia-restaurante, target: /uploads}
+    secrets:
+      - source: auth_public_key
+        target: auth_public_key.pem
+        uid: "1000"
+        gid: "1000"
+        mode: 0444
     networks: [public-net]
     deploy:
       <<: *deploy-defaults
@@ -482,9 +492,11 @@ volumes:
   crecilandia-store-frontend-data: {driver: local}
   losmolinos-restaurante-uploads: {driver: local}
   losmolinos-restaurante-logs: {driver: local}
-  losmolinos-restaurante-keys: {driver: local}
   losmolinos-restaurante-frontend-data: {driver: local}
   crecilandia-restaurante-uploads: {driver: local}
   crecilandia-restaurante-logs: {driver: local}
-  crecilandia-restaurante-keys: {driver: local}
   crecilandia-restaurante-frontend-data: {driver: local}
+
+secrets:
+  auth_public_key:
+    external: true

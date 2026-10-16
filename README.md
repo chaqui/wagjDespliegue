@@ -25,7 +25,7 @@ Cada backend fija además su esquema con `SPRING_JPA_PROPERTIES_HIBERNATE_DEFAUL
 
 Los cuatro backends reciben `AUTH_SERVICE_URL=http://auth-service:8082`. Los servicios Store anuncian la URL pública de su frontend. Cada restaurante anuncia en `SERVICE_BASE_URL` su endpoint interno alcanzable por Auth: `http://losmolinos-restaurante-backend:8001` o `http://crecilandia-restaurante-backend:8001`.
 
-Cada restaurante conserva su par RSA en un volumen nombrado independiente y escribible. La llave pública de Auth se monta dentro de ese volumen en `/app/keys/public_key.pem` como archivo de solo lectura; las llaves `restaurant_public_key.pem` y `restaurant_private_key.pem` son generadas por la aplicación y sobreviven a reinicios y actualizaciones.
+Cada restaurante conserva su par RSA en un directorio bind independiente y escribible por el UID/GID `1000`: `/opt/wagj/keys/losmolinos-restaurante` y `/opt/wagj/keys/crecilandia-restaurante`. La llave pública de Auth se distribuye mediante el secreto externo de Swarm `auth_public_key` en `/run/secrets/auth_public_key.pem`; las llaves `restaurant_public_key.pem` y `restaurant_private_key.pem` se generan dentro del directorio propio y sobreviven a reinicios y actualizaciones. Los scripts preparan permisos `0700` y crean el secreto desde `./keys/public_key.pem`.
 
 La URL entregada a cada backend incluye también `currentSchema=<esquema>`. Esta es la protección principal para imágenes que construyen un `DataSource` personalizado desde `DB_URL` y no respetan todas las propiedades estándar de Spring.
 

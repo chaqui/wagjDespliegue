@@ -105,6 +105,10 @@ prepare_bind_dirs() {
     "$SCRIPT_DIR/data/crecilandia-restaurante"
   )
   local dir
+  local restaurant_key_dirs=(
+    /opt/wagj/keys/losmolinos-restaurante
+    /opt/wagj/keys/crecilandia-restaurante
+  )
   mkdir -p "$SCRIPT_DIR/certs"
   chmod 755 "$SCRIPT_DIR/certs" || true
   for dir in "${writable_dirs[@]}"; do
@@ -112,6 +116,20 @@ prepare_bind_dirs() {
     mkdir -p "$dir"
     chmod 777 "$dir" || true
   done
+  for dir in "${restaurant_key_dirs[@]}"; do
+    if [ "$(id -u)" -eq 0 ]; then
+      install -d -m 700 -o 1000 -g 1000 "$dir"
+    elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+      sudo install -d -m 700 -o 1000 -g 1000 "$dir"
+    else
+      die "Se requiere root o sudo sin interaccion para preparar $dir."
+    fi
+  done
+  if ! docker_cmd secret inspect auth_public_key >/dev/null 2>&1; then
+    [ -s "$SCRIPT_DIR/keys/public_key.pem" ] || die "No existe keys/public_key.pem para crear el secreto auth_public_key."
+    docker_cmd secret create auth_public_key "$SCRIPT_DIR/keys/public_key.pem" >/dev/null
+    log "Secreto Swarm auth_public_key creado desde keys/public_key.pem."
+  fi
 }
 recover_bind_mount_failures() {
   local svc errors wanted active

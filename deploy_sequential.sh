@@ -283,6 +283,40 @@ prepare_dirs() {
 
 prepare_dirs
 
+# Los restaurantes ejecutan como UID 1000 y necesitan identidades RSA
+# persistentes e independientes.
+prepare_restaurant_key_dirs() {
+  local dir
+  for dir in /opt/wagj/keys/losmolinos-restaurante /opt/wagj/keys/crecilandia-restaurante; do
+    if [ "$(id -u)" -eq 0 ]; then
+      install -d -m 700 -o 1000 -g 1000 "$dir"
+    elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+      sudo install -d -m 700 -o 1000 -g 1000 "$dir"
+    else
+      log "ERROR: se requiere root o sudo sin interacción para preparar $dir"
+      exit 1
+    fi
+    log "Directorio RSA preparado: $dir (UID/GID 1000, modo 700)"
+  done
+}
+
+prepare_auth_public_key_secret() {
+  [ -s "./keys/public_key.pem" ] || {
+    log "ERROR: falta ./keys/public_key.pem; no se puede crear el secreto auth_public_key"
+    exit 1
+  }
+  # El stack anterior ya fue retirado, por lo que el secreto puede recrearse
+  # para reflejar exactamente la llave pública persistida por Auth.
+  if $SUDO_PREFIX $DOCKER_CMD secret inspect auth_public_key >/dev/null 2>&1; then
+    $SUDO_PREFIX $DOCKER_CMD secret rm auth_public_key >/dev/null
+  fi
+  $SUDO_PREFIX $DOCKER_CMD secret create auth_public_key ./keys/public_key.pem >/dev/null
+  log "Secreto Swarm auth_public_key creado desde ./keys/public_key.pem"
+}
+
+prepare_restaurant_key_dirs
+prepare_auth_public_key_secret
+
 # Inicializar acme.json en el volumen de Traefik con permisos 600
 # (Traefik requiere que exista y tenga chmod 600; si no, ignora ACME silenciosamente)
 init_acme_json() {
