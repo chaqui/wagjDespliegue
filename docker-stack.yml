@@ -237,7 +237,7 @@ services:
         - traefik.http.routers.losmolinos-store.priority=10
         - traefik.http.routers.losmolinos-store.service=losmolinos-store-frontend
         - traefik.http.middlewares.strip-losmolinos-store.stripprefix.prefixes=/losmolinos/store
-        - traefik.http.middlewares.redirect-losmolinos-store-slash.redirectregex.regex=^https?://([^/]+)/losmolinos/store$
+        - traefik.http.middlewares.redirect-losmolinos-store-slash.redirectregex.regex=^https?://([^/]+)/losmolinos/store$$
         - traefik.http.middlewares.redirect-losmolinos-store-slash.redirectregex.replacement=https://$${1}/losmolinos/store/
         - traefik.http.middlewares.redirect-losmolinos-store-slash.redirectregex.permanent=true
         - traefik.http.services.losmolinos-store-frontend.loadbalancer.server.port=3000
@@ -317,7 +317,7 @@ services:
         - traefik.http.routers.crecilandia-store.priority=10
         - traefik.http.routers.crecilandia-store.service=crecilandia-store-frontend
         - traefik.http.middlewares.strip-crecilandia-store.stripprefix.prefixes=/crecilandia/store
-        - traefik.http.middlewares.redirect-crecilandia-store-slash.redirectregex.regex=^https?://([^/]+)/crecilandia/store$
+        - traefik.http.middlewares.redirect-crecilandia-store-slash.redirectregex.regex=^https?://([^/]+)/crecilandia/store$$
         - traefik.http.middlewares.redirect-crecilandia-store-slash.redirectregex.replacement=https://$${1}/crecilandia/store/
         - traefik.http.middlewares.redirect-crecilandia-store-slash.redirectregex.permanent=true
         - traefik.http.services.crecilandia-store-frontend.loadbalancer.server.port=3000
