@@ -23,6 +23,8 @@ Todos los servicios Java ejecutan el perfil Spring `postgres`, usan explícitame
 
 Cada backend fija además su esquema con `SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA` y `SPRING_DATASOURCE_HIKARI_SCHEMA`. Esto evita que Hibernate valide o consulte las tablas en `public` cuando los esquemas tienen nombres específicos como `CrecilandiaRestaurante`.
 
+Los cuatro backends reciben `AUTH_SERVICE_URL` y `SERVICE_BASE_URL` con el valor interno `http://auth-service:8082`, resoluble mediante la red overlay de Swarm.
+
 La URL entregada a cada backend incluye también `currentSchema=<esquema>`. Esta es la protección principal para imágenes que construyen un `DataSource` personalizado desde `DB_URL` y no respetan todas las propiedades estándar de Spring.
 
 Los backends de restaurante usan el tag móvil `ghcr.io/chaqui/restaurant-java:main`. El actualizador descarga ese tag, compara su digest con el desplegado y actualiza los servicios únicamente cuando el contenido publicado cambia. El flujo de CI debe publicar también `:main`, además del tag inmutable `main-<commit>`.

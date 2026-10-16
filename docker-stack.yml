@@ -29,6 +29,7 @@ x-backend-environment: &backend-environment
   SPRING_JPA_SHOW_SQL: "false"
   SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: "false"
   AUTH_SERVICE_URL: http://auth-service:8082
+  SERVICE_BASE_URL: http://auth-service:8082
 
 x-frontend-environment: &frontend-environment
   NODE_ENV: production
