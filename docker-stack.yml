@@ -233,18 +233,14 @@ services:
         - "traefik.http.routers.losmolinos-store.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/store`)"
         - traefik.http.routers.losmolinos-store.entrypoints=websecure
         - traefik.http.routers.losmolinos-store.tls.certresolver=letsencrypt
-        - traefik.http.routers.losmolinos-store.middlewares=rate-limit,strip-losmolinos-store
+        - traefik.http.routers.losmolinos-store.middlewares=rate-limit,redirect-losmolinos-store-slash,strip-losmolinos-store
         - traefik.http.routers.losmolinos-store.priority=10
         - traefik.http.routers.losmolinos-store.service=losmolinos-store-frontend
         - traefik.http.middlewares.strip-losmolinos-store.stripprefix.prefixes=/losmolinos/store
+        - traefik.http.middlewares.redirect-losmolinos-store-slash.redirectregex.regex=^https?://([^/]+)/losmolinos/store$
+        - traefik.http.middlewares.redirect-losmolinos-store-slash.redirectregex.replacement=https://$${1}/losmolinos/store/
+        - traefik.http.middlewares.redirect-losmolinos-store-slash.redirectregex.permanent=true
         - traefik.http.services.losmolinos-store-frontend.loadbalancer.server.port=3000
-        - "traefik.http.routers.losmolinos-store-assets.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/inventario/`) && HeadersRegexp(`Referer`, `^https://grupowagj.duckdns.org/losmolinos/store`)"
-        - traefik.http.routers.losmolinos-store-assets.entrypoints=websecure
-        - traefik.http.routers.losmolinos-store-assets.tls.certresolver=letsencrypt
-        - traefik.http.routers.losmolinos-store-assets.middlewares=strip-losmolinos-inventario-assets
-        - traefik.http.routers.losmolinos-store-assets.priority=200
-        - traefik.http.routers.losmolinos-store-assets.service=losmolinos-store-frontend
-        - traefik.http.middlewares.strip-losmolinos-inventario-assets.stripprefix.prefixes=/inventario
     logging: *default-logging
 
   crecilandia-store-backend:
@@ -317,18 +313,14 @@ services:
         - "traefik.http.routers.crecilandia-store.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/store`)"
         - traefik.http.routers.crecilandia-store.entrypoints=websecure
         - traefik.http.routers.crecilandia-store.tls.certresolver=letsencrypt
-        - traefik.http.routers.crecilandia-store.middlewares=rate-limit,strip-crecilandia-store
+        - traefik.http.routers.crecilandia-store.middlewares=rate-limit,redirect-crecilandia-store-slash,strip-crecilandia-store
         - traefik.http.routers.crecilandia-store.priority=10
         - traefik.http.routers.crecilandia-store.service=crecilandia-store-frontend
         - traefik.http.middlewares.strip-crecilandia-store.stripprefix.prefixes=/crecilandia/store
+        - traefik.http.middlewares.redirect-crecilandia-store-slash.redirectregex.regex=^https?://([^/]+)/crecilandia/store$
+        - traefik.http.middlewares.redirect-crecilandia-store-slash.redirectregex.replacement=https://$${1}/crecilandia/store/
+        - traefik.http.middlewares.redirect-crecilandia-store-slash.redirectregex.permanent=true
         - traefik.http.services.crecilandia-store-frontend.loadbalancer.server.port=3000
-        - "traefik.http.routers.crecilandia-store-assets.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/inventario/`) && HeadersRegexp(`Referer`, `^https://grupowagj.duckdns.org/crecilandia/store`)"
-        - traefik.http.routers.crecilandia-store-assets.entrypoints=websecure
-        - traefik.http.routers.crecilandia-store-assets.tls.certresolver=letsencrypt
-        - traefik.http.routers.crecilandia-store-assets.middlewares=strip-crecilandia-inventario-assets
-        - traefik.http.routers.crecilandia-store-assets.priority=200
-        - traefik.http.routers.crecilandia-store-assets.service=crecilandia-store-frontend
-        - traefik.http.middlewares.strip-crecilandia-inventario-assets.stripprefix.prefixes=/inventario
     logging: *default-logging
 
   losmolinos-restaurante-backend:

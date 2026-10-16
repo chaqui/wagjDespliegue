@@ -29,7 +29,7 @@ Cada restaurante conserva su par RSA en un directorio bind independiente y escri
 
 La URL entregada a cada backend incluye también `currentSchema=<esquema>`. Esta es la protección principal para imágenes que construyen un `DataSource` personalizado desde `DB_URL` y no respetan todas las propiedades estándar de Spring.
 
-La imagen Store todavía genera algunos assets bajo `/inventario/`. Dos routers Traefik de compatibilidad usan el encabezado `Referer` para enviar esos recursos al Store correspondiente y eliminan el prefijo antes de entregarlos a Nginx. Esto evita mezclar los assets de Store con los del frontend Restaurante.
+La imagen Store se construye con `<base href="./">`, por lo que una misma imagen funciona bajo la ruta pública de cada instancia (`/losmolinos/store/` o `/crecilandia/store/`) sin modificar `index.html` al arrancar. Traefik redirige la ruta base sin diagonal final a su versión con `/`, para que el navegador resuelva estilos, chunks y `config.json` dentro del prefijo correcto.
 
 Los backends de restaurante usan el tag móvil `ghcr.io/chaqui/restaurant-java:main`. El actualizador descarga ese tag, compara su digest con el desplegado y actualiza los servicios únicamente cuando el contenido publicado cambia. El flujo de CI debe publicar también `:main`, además del tag inmutable `main-<commit>`.
 
