@@ -329,8 +329,8 @@ services:
       SERVER_PORT: "8103"
       SERVICE_PORT: "8103"
       SERVICE_NAME: losmolinos-restaurante-backend
-      SERVICE_URL: http://losmolinos-restaurante-backend:8103
-      SERVICE_BASE_URL: https://grupowagj.duckdns.org/losmolinos/restaurante
+      SERVICE_URL: https://grupowagj.duckdns.org/losmolinos/restaurante 
+      SERVICE_BASE_URL: http://auth-service:8082 
     volumes:
       - losmolinos-restaurante-uploads:/app/uploads
       - losmolinos-restaurante-logs:/var/log/inventario
@@ -400,8 +400,8 @@ services:
       SERVER_PORT: "8104"
       SERVICE_PORT: "8104"
       SERVICE_NAME: crecilandia-restaurante-backend
-      SERVICE_URL: http://crecilandia-restaurante-backend:8104
-      SERVICE_BASE_URL: https://grupowagj.duckdns.org/crecilandia/restaurante
+      SERVICE_URL: https://grupowagj.duckdns.org/crecilandia/restaurante
+      SERVICE_BASE_URL: http://auth-service:8082 
     volumes:
       - crecilandia-restaurante-uploads:/app/uploads
       - crecilandia-restaurante-logs:/var/log/inventario
