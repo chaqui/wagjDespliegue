@@ -326,16 +326,20 @@ services:
       SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=losmolinosrestaurante
       SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: losmolinosrestaurante
       SPRING_DATASOURCE_HIKARI_SCHEMA: losmolinosrestaurante
-      SERVER_PORT: "8103"
-      SERVICE_PORT: "8103"
+      SERVER_PORT: "8001"
+      SERVICE_PORT: "8001"
       SERVICE_NAME: losmolinos-restaurante-backend
       SERVICE_URL: https://grupowagj.duckdns.org/losmolinos/restaurante 
-      SERVICE_BASE_URL: http://auth-service:8082 
+      SERVICE_BASE_URL: http://losmolinos-restaurante-backend:8001
+      AUTH_PUBLIC_KEY_PATH: /app/keys/public_key.pem
+      SERVICE_PUBLIC_KEY_PATH: /app/keys/restaurant_public_key.pem
+      SERVICE_PRIVATE_KEY_PATH: /app/keys/restaurant_private_key.pem
     volumes:
       - losmolinos-restaurante-uploads:/app/uploads
       - losmolinos-restaurante-logs:/var/log/inventario
       - {type: bind, source: ./certs, target: /app/certs, read_only: true}
-      - {type: bind, source: ./keys, target: /app/keys, read_only: true}
+      - losmolinos-restaurante-keys:/app/keys
+      - {type: bind, source: ./keys/public_key.pem, target: /app/keys/public_key.pem, read_only: true}
       - {type: bind, source: ./logs/losmolinos-restaurante-backend, target: /app/logs}
       - {type: bind, source: ./data/losmolinos-restaurante, target: /uploads}
     networks: [public-net]
@@ -353,7 +357,7 @@ services:
         - traefik.http.routers.losmolinos-restaurante-api.service=losmolinos-restaurante-api
         - traefik.http.middlewares.strip-losmolinos-restaurante-api.replacepathregex.regex=^/losmolinos/restaurante-api(.*)
         - traefik.http.middlewares.strip-losmolinos-restaurante-api.replacepathregex.replacement=$${1}
-        - traefik.http.services.losmolinos-restaurante-api.loadbalancer.server.port=8103
+        - traefik.http.services.losmolinos-restaurante-api.loadbalancer.server.port=8001
         - traefik.http.services.losmolinos-restaurante-api.loadbalancer.sticky.cookie=true
         - traefik.http.services.losmolinos-restaurante-api.loadbalancer.sticky.cookie.name=losmolinos_restaurante_session
         - traefik.http.services.losmolinos-restaurante-api.loadbalancer.sticky.cookie.secure=true
@@ -369,7 +373,7 @@ services:
       APP_BASE_HREF: /losmolinos/restaurante/
       API_URL: https://grupowagj.duckdns.org/losmolinos/restaurante-api
       WS_URL: https://grupowagj.duckdns.org/losmolinos/restaurante-api/ws-inventario
-      SSR_API_URL: http://losmolinos-restaurante-backend:8103
+      SSR_API_URL: http://losmolinos-restaurante-backend:8001
     volumes: [losmolinos-restaurante-frontend-data:/app/data, /etc/timezone:/etc/timezone:ro]
     networks: [public-net]
     deploy:
@@ -397,16 +401,20 @@ services:
       SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=crecilandiarestaurante
       SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: crecilandiarestaurante
       SPRING_DATASOURCE_HIKARI_SCHEMA: crecilandiarestaurante
-      SERVER_PORT: "8104"
-      SERVICE_PORT: "8104"
+      SERVER_PORT: "8001"
+      SERVICE_PORT: "8001"
       SERVICE_NAME: crecilandia-restaurante-backend
       SERVICE_URL: https://grupowagj.duckdns.org/crecilandia/restaurante
-      SERVICE_BASE_URL: http://auth-service:8082 
+      SERVICE_BASE_URL: http://crecilandia-restaurante-backend:8001
+      AUTH_PUBLIC_KEY_PATH: /app/keys/public_key.pem
+      SERVICE_PUBLIC_KEY_PATH: /app/keys/restaurant_public_key.pem
+      SERVICE_PRIVATE_KEY_PATH: /app/keys/restaurant_private_key.pem
     volumes:
       - crecilandia-restaurante-uploads:/app/uploads
       - crecilandia-restaurante-logs:/var/log/inventario
       - {type: bind, source: ./certs, target: /app/certs, read_only: true}
-      - {type: bind, source: ./keys, target: /app/keys, read_only: true}
+      - crecilandia-restaurante-keys:/app/keys
+      - {type: bind, source: ./keys/public_key.pem, target: /app/keys/public_key.pem, read_only: true}
       - {type: bind, source: ./logs/crecilandia-restaurante-backend, target: /app/logs}
       - {type: bind, source: ./data/crecilandia-restaurante, target: /uploads}
     networks: [public-net]
@@ -424,7 +432,7 @@ services:
         - traefik.http.routers.crecilandia-restaurante-api.service=crecilandia-restaurante-api
         - traefik.http.middlewares.strip-crecilandia-restaurante-api.replacepathregex.regex=^/crecilandia/restaurante-api(.*)
         - traefik.http.middlewares.strip-crecilandia-restaurante-api.replacepathregex.replacement=$${1}
-        - traefik.http.services.crecilandia-restaurante-api.loadbalancer.server.port=8104
+        - traefik.http.services.crecilandia-restaurante-api.loadbalancer.server.port=8001
         - traefik.http.services.crecilandia-restaurante-api.loadbalancer.sticky.cookie=true
         - traefik.http.services.crecilandia-restaurante-api.loadbalancer.sticky.cookie.name=crecilandia_restaurante_session
         - traefik.http.services.crecilandia-restaurante-api.loadbalancer.sticky.cookie.secure=true
@@ -440,7 +448,7 @@ services:
       APP_BASE_HREF: /crecilandia/restaurante/
       API_URL: https://grupowagj.duckdns.org/crecilandia/restaurante-api
       WS_URL: https://grupowagj.duckdns.org/crecilandia/restaurante-api/ws-inventario
-      SSR_API_URL: http://crecilandia-restaurante-backend:8104
+      SSR_API_URL: http://crecilandia-restaurante-backend:8001
     volumes: [crecilandia-restaurante-frontend-data:/app/data, /etc/timezone:/etc/timezone:ro]
     networks: [public-net]
     deploy:
@@ -474,7 +482,9 @@ volumes:
   crecilandia-store-frontend-data: {driver: local}
   losmolinos-restaurante-uploads: {driver: local}
   losmolinos-restaurante-logs: {driver: local}
+  losmolinos-restaurante-keys: {driver: local}
   losmolinos-restaurante-frontend-data: {driver: local}
   crecilandia-restaurante-uploads: {driver: local}
   crecilandia-restaurante-logs: {driver: local}
+  crecilandia-restaurante-keys: {driver: local}
   crecilandia-restaurante-frontend-data: {driver: local}

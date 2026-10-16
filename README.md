@@ -8,8 +8,8 @@ Stack Docker Swarm para cuatro unidades de negocio aisladas por esquema PostgreS
 |---|---|---|---|
 | Los Molinos Store | `/losmolinos/store` · `3101` | `/losmolinos/store-api` · `8101` | `LosMolinosStore` |
 | Crecilandia Store | `/crecilandia/store` · `3102` | `/crecilandia/store-api` · `8102` | `CrecilandiaStore` |
-| Los Molinos Restaurante | `/losmolinos/restaurante` · `3103` | `/losmolinos/restaurante-api` · `8103` | `LosMolinosRestaurante` |
-| Crecilandia Restaurante | `/crecilandia/restaurante` · `3104` | `/crecilandia/restaurante-api` · `8104` | `CrecilandiaRestaurante` |
+| Los Molinos Restaurante | `/losmolinos/restaurante` · `3103` | `/losmolinos/restaurante-api` · `8001` | `LosMolinosRestaurante` |
+| Crecilandia Restaurante | `/crecilandia/restaurante` · `3104` | `/crecilandia/restaurante-api` · `8001` | `CrecilandiaRestaurante` |
 
 Servicios compartidos:
 
@@ -23,7 +23,9 @@ Todos los servicios Java ejecutan el perfil Spring `postgres`, usan explícitame
 
 Cada backend fija además su esquema con `SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA` y `SPRING_DATASOURCE_HIKARI_SCHEMA`. Esto evita que Hibernate valide o consulte las tablas en `public` cuando los esquemas tienen nombres específicos como `CrecilandiaRestaurante`.
 
-Los cuatro backends reciben `AUTH_SERVICE_URL=http://auth-service:8082`. Cada uno anuncia mediante `SERVICE_BASE_URL` la URL pública de su frontend relacionado: `/losmolinos/store`, `/crecilandia/store`, `/losmolinos/restaurante` o `/crecilandia/restaurante`, bajo `https://grupowagj.duckdns.org`.
+Los cuatro backends reciben `AUTH_SERVICE_URL=http://auth-service:8082`. Los servicios Store anuncian la URL pública de su frontend. Cada restaurante anuncia en `SERVICE_BASE_URL` su endpoint interno alcanzable por Auth: `http://losmolinos-restaurante-backend:8001` o `http://crecilandia-restaurante-backend:8001`.
+
+Cada restaurante conserva su par RSA en un volumen nombrado independiente y escribible. La llave pública de Auth se monta dentro de ese volumen en `/app/keys/public_key.pem` como archivo de solo lectura; las llaves `restaurant_public_key.pem` y `restaurant_private_key.pem` son generadas por la aplicación y sobreviven a reinicios y actualizaciones.
 
 La URL entregada a cada backend incluye también `currentSchema=<esquema>`. Esta es la protección principal para imágenes que construyen un `DataSource` personalizado desde `DB_URL` y no respetan todas las propiedades estándar de Spring.
 
