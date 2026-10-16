@@ -33,9 +33,9 @@ La imagen Store se construye con `<base href="./">`, por lo que una misma imagen
 
 Los backends de restaurante usan el tag móvil `ghcr.io/chaqui/restaurant-java:main`. El actualizador descarga ese tag, compara su digest con el desplegado y actualiza los servicios únicamente cuando el contenido publicado cambia. El flujo de CI debe publicar también `:main`, además del tag inmutable `main-<commit>`.
 
-Los frontends de Restaurante reciben las rutas públicas `/losmolinos/restaurante/` y `/crecilandia/restaurante/`. Traefik retira el prefijo para servir los assets y reescribe la raíz resultante `/` a `/index.html`, porque la imagen publicada no registra una ruta Express para `/`.
+Los frontends de Restaurante reciben las rutas públicas `/losmolinos/restaurante/` y `/crecilandia/restaurante/`; Traefik retira esos prefijos antes de entregar las solicitudes al servidor de cada imagen.
 
-Los frontends de restaurante están fijados en `ghcr.io/chaqui/fronted-restaurante:main-92745dd`. En modo `--images-only`, el actualizador compara el digest descargado con el digest de cada servicio y evita reinicios cuando ya coinciden.
+Los frontends de restaurante usan el tag móvil `ghcr.io/chaqui/fronted-restaurante:main`. En modo `--images-only`, el actualizador compara el digest descargado con el digest de cada servicio y evita reinicios cuando ya coinciden.
 
 La suma de los límites configurados para los 11 servicios es `1616 MiB` (`1,694,498,816` bytes, aproximadamente `1.695 GB` decimales), por debajo de `1.7 GB`. Los límites no son reservas, pero el host debe disponer de memoria física y swap suficientes cuando todos los servicios ejecuten una réplica. Se distribuyen así: Traefik `64 MiB`, autenticación `288 MiB`, usuarios `48 MiB`, cada backend tenant `256 MiB` y cada frontend tenant `48 MiB`. Autenticación utiliza `-Xms64m -Xmx176m`; los backends usan `-Xms64m -Xmx128m`, dejando `128 MiB` por backend para Metaspace, hilos, buffers y memoria nativa. Las actualizaciones usan `stop-first` para no duplicar temporalmente el consumo del servicio actualizado.
 
