@@ -213,6 +213,7 @@ services:
 
   losmolinos-store-frontend:
     image: ghcr.io/chaqui/inventario-frontend-wagj:main
+    entrypoint: ["/bin/sh", "-c", "sed -i 's|<base href=\"[^\"]*\">|<base href=\"./\">|' /usr/share/nginx/html/index.html && exec /docker-entrypoint.sh"]
     environment:
       <<: *frontend-environment
       PORT: "3101"
@@ -293,6 +294,7 @@ services:
 
   crecilandia-store-frontend:
     image: ghcr.io/chaqui/inventario-frontend-wagj:main
+    entrypoint: ["/bin/sh", "-c", "sed -i 's|<base href=\"[^\"]*\">|<base href=\"./\">|' /usr/share/nginx/html/index.html && exec /docker-entrypoint.sh"]
     environment:
       <<: *frontend-environment
       PORT: "3102"
