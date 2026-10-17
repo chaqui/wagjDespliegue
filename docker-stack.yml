@@ -400,9 +400,10 @@ services:
         - "traefik.http.routers.losmolinos-restaurante.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/losmolinos/restaurante`)"
         - traefik.http.routers.losmolinos-restaurante.entrypoints=websecure
         - traefik.http.routers.losmolinos-restaurante.tls.certresolver=letsencrypt
-        - traefik.http.routers.losmolinos-restaurante.middlewares=rate-limit,redirect-losmolinos-restaurante-slash
+        - traefik.http.routers.losmolinos-restaurante.middlewares=rate-limit,redirect-losmolinos-restaurante-slash,strip-losmolinos-restaurante
         - traefik.http.routers.losmolinos-restaurante.priority=10
         - traefik.http.routers.losmolinos-restaurante.service=losmolinos-restaurante-frontend
+        - traefik.http.middlewares.strip-losmolinos-restaurante.stripprefix.prefixes=/losmolinos/restaurante
         - traefik.http.middlewares.redirect-losmolinos-restaurante-slash.redirectregex.regex=^https?://([^/]+)/losmolinos/restaurante$$
         - traefik.http.middlewares.redirect-losmolinos-restaurante-slash.redirectregex.replacement=https://$${1}/losmolinos/restaurante/
         - traefik.http.middlewares.redirect-losmolinos-restaurante-slash.redirectregex.permanent=true
@@ -484,9 +485,10 @@ services:
         - "traefik.http.routers.crecilandia-restaurante.rule=Host(`grupowagj.duckdns.org`) && PathPrefix(`/crecilandia/restaurante`)"
         - traefik.http.routers.crecilandia-restaurante.entrypoints=websecure
         - traefik.http.routers.crecilandia-restaurante.tls.certresolver=letsencrypt
-        - traefik.http.routers.crecilandia-restaurante.middlewares=rate-limit,redirect-crecilandia-restaurante-slash
+        - traefik.http.routers.crecilandia-restaurante.middlewares=rate-limit,redirect-crecilandia-restaurante-slash,strip-crecilandia-restaurante
         - traefik.http.routers.crecilandia-restaurante.priority=10
         - traefik.http.routers.crecilandia-restaurante.service=crecilandia-restaurante-frontend
+        - traefik.http.middlewares.strip-crecilandia-restaurante.stripprefix.prefixes=/crecilandia/restaurante
         - traefik.http.middlewares.redirect-crecilandia-restaurante-slash.redirectregex.regex=^https?://([^/]+)/crecilandia/restaurante$$
         - traefik.http.middlewares.redirect-crecilandia-restaurante-slash.redirectregex.replacement=https://$${1}/crecilandia/restaurante/
         - traefik.http.middlewares.redirect-crecilandia-restaurante-slash.redirectregex.permanent=true
