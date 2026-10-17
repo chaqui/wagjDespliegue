@@ -33,7 +33,7 @@ La imagen Store se construye con `<base href="./">`, por lo que una misma imagen
 
 Los backends de restaurante usan el tag móvil `ghcr.io/chaqui/restaurant-java:main`. El actualizador descarga ese tag, compara su digest con el desplegado y actualiza los servicios únicamente cuando el contenido publicado cambia. El flujo de CI debe publicar también `:main`, además del tag inmutable `main-<commit>`.
 
-Los frontends de Restaurante reciben las rutas públicas `/losmolinos/restaurante/` y `/crecilandia/restaurante/`; Traefik retira esos prefijos antes de entregar las solicitudes al servidor de cada imagen.
+Los frontends SSR de Restaurante reciben completas las rutas públicas `/losmolinos/restaurante/` y `/crecilandia/restaurante/`. Cada contenedor inyecta su prefijo mediante `APP_BASE_HREF`; Traefik no debe retirarlo. Traefik sí normaliza las rutas base sin diagonal final, necesaria para que `<base href="./">` resuelva rutas como `tables` dentro del tenant.
 
 Los frontends de restaurante usan el tag móvil `ghcr.io/chaqui/fronted-restaurante:main`. En modo `--images-only`, el actualizador compara el digest descargado con el digest de cada servicio y evita reinicios cuando ya coinciden.
 
