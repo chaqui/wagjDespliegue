@@ -169,11 +169,11 @@ services:
     image: ghcr.io/chaqui/inventario-backend-wagj:main
     environment:
       <<: *backend-environment
-      DB_SCHEMA: LosMolinosStore
-      DB_URL: ${DB_URL}?currentSchema=LosMolinosStore
-      SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=LosMolinosStore
-      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: LosMolinosStore
-      SPRING_DATASOURCE_HIKARI_SCHEMA: LosMolinosStore
+      DB_SCHEMA: losmolinosstore
+      DB_URL: ${DB_URL}?currentSchema=losmolinosstore
+      SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=losmolinosstore
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: losmolinosstore
+      SPRING_DATASOURCE_HIKARI_SCHEMA: losmolinosstore
       SERVER_PORT: "8101"
       SERVICE_PORT: "8101"
       SERVICE_NAME: losmolinos-store-backend
@@ -250,11 +250,11 @@ services:
     image: ghcr.io/chaqui/inventario-backend-wagj:main
     environment:
       <<: *backend-environment
-      DB_SCHEMA: CrecilandiaStore
-      DB_URL: ${DB_URL}?currentSchema=CrecilandiaStore
-      SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=CrecilandiaStore
-      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: CrecilandiaStore
-      SPRING_DATASOURCE_HIKARI_SCHEMA: CrecilandiaStore
+      DB_SCHEMA: crecilandiastore
+      DB_URL: ${DB_URL}?currentSchema=crecilandiastore
+      SPRING_DATASOURCE_URL: ${DB_URL}?currentSchema=crecilandiastore
+      SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_SCHEMA: crecilandiastore
+      SPRING_DATASOURCE_HIKARI_SCHEMA: crecilandiastore
       SERVER_PORT: "8102"
       SERVICE_PORT: "8102"
       SERVICE_NAME: crecilandia-store-backend
