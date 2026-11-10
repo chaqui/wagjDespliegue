@@ -24,6 +24,7 @@ WEBHOOK_URL="${WEBHOOK_URL:-}"
 MODE=all DRY_RUN=false FORCE_SERVICE=""
 UPDATED_SERVICES=() FAILED_SERVICES=() UNCHANGED_SERVICES=() TMP_FILES=()
 ENV_OVERRIDE_NAMES=()
+declare -A INITIAL_SERVICE_DIGESTS=()
 
 usage() {
   cat <<'EOF'
@@ -437,6 +438,13 @@ image_digest() {
   while read -r candidate; do case "$candidate" in "${repo}@"*) echo "${candidate##*@}"; return;; esac; done < <(docker_cmd image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image" 2>/dev/null || true); return 1
 }
 current_digest() { local ref; ref="$(docker_cmd service inspect --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' "$1" 2>/dev/null || true)"; [[ "$ref" == *@* ]] && echo "${ref##*@}"; }
+capture_initial_service_digests() {
+  local service
+  while IFS= read -r service; do
+    [ -n "$service" ] || continue
+    INITIAL_SERVICE_DIGESTS["$service"]="$(current_digest "$service")"
+  done < <(docker_cmd service ls --filter "label=com.docker.stack.namespace=${STACK_NAME}" --format '{{.Name}}')
+}
 remote_digest() {
   local image="$1" digest=""
   if docker_cmd buildx version >/dev/null 2>&1; then
@@ -448,7 +456,7 @@ remote_digest() {
   [ -n "$digest" ] && echo "$digest"
 }
 sync_images() {
-  local mappings=() mapping image digest compose_service swarm_service old force_match; declare -A digests=() pull_failed=()
+  local mappings=() mapping image digest compose_service swarm_service old initial_digest force_match; declare -A digests=() pull_failed=()
   mapfile -t mappings < <(read_service_images)
   for mapping in "${mappings[@]}"; do image="${mapping#*|}"; [ -n "${digests[$image]+x}" ] && continue
     if $DRY_RUN; then
@@ -463,17 +471,30 @@ sync_images() {
   for mapping in "${mappings[@]}"; do compose_service="${mapping%%|*}"; image="${mapping#*|}"; swarm_service="${STACK_NAME}_${compose_service}"
     if [ -n "${pull_failed[$image]+x}" ] || [ -z "${digests[$image]:-}" ]; then FAILED_SERVICES+=("$swarm_service"); continue; fi
     digest="${digests[$image]}"; old="$(current_digest "$swarm_service")"
+    initial_digest="${INITIAL_SERVICE_DIGESTS[$swarm_service]-__NOT_CAPTURED__}"
     force_match=false
     if [ "$FORCE_SERVICE" = "$compose_service" ] || [ "$FORCE_SERVICE" = "$swarm_service" ]; then force_match=true; fi
-    if [ "$old" = "$digest" ] && ! $force_match; then UNCHANGED_SERVICES+=("$swarm_service"); continue; fi
-    if $DRY_RUN; then log "DRY-RUN: actualizaria $swarm_service: ${old:-sin-digest} -> $digest"; continue; fi
+    if [ "$old" = "$digest" ] && [ "$initial_digest" != "$digest" ] && ! $force_match; then
+      log "Imagen actualizada durante docker stack deploy: $swarm_service (${initial_digest:-sin-digest} -> $digest)."
+      UPDATED_SERVICES+=("$swarm_service")
+      continue
+    fi
+    if [ "$old" = "$digest" ] && ! $force_match; then
+      log "Imagen sin cambios: $swarm_service ($digest)."
+      UNCHANGED_SERVICES+=("$swarm_service")
+      continue
+    fi
+    if $DRY_RUN; then log "DRY-RUN: actualizaria la imagen de $swarm_service: ${old:-sin-digest} -> $digest"; continue; fi
     log "Actualizando $swarm_service: ${old:-sin-digest} -> $digest"
     if $force_match; then
       docker_cmd service update --detach=true --force --with-registry-auth --image "${image%%@*}@${digest}" "$swarm_service" 2>&1 | tee -a "$LOG_FILE"
     else
       docker_cmd service update --detach=true --with-registry-auth --image "${image%%@*}@${digest}" "$swarm_service" 2>&1 | tee -a "$LOG_FILE"
     fi
-    verify_or_rollback "$swarm_service" && UPDATED_SERVICES+=("$swarm_service")
+    if verify_or_rollback "$swarm_service"; then
+      UPDATED_SERVICES+=("$swarm_service")
+      log "Imagen actualizada y verificada: $swarm_service ($digest)."
+    fi
   done
 }
 show_status() { [ -f "$STATUS_FILE" ] && { echo "Ultima ejecucion:"; cat "$STATUS_FILE"; echo; }; stack_exists && docker_cmd stack services "$STACK_NAME" || echo "El stack $STACK_NAME no existe."; }
@@ -496,6 +517,7 @@ if ! stack_exists; then
   notify success "Primer despliegue completado."; exit
 fi
 is_manager || die "Este nodo no es manager del Swarm."
+capture_initial_service_digests
 prepare_bind_dirs
 recover_bind_mount_failures
 remove_orphan_services
@@ -503,5 +525,5 @@ remove_orphan_services
 [ "$MODE" = env ] || sync_images
 prune_images
 [ "${#FAILED_SERVICES[@]}" -eq 0 ] || die "Servicios con error: ${FAILED_SERVICES[*]}"
-summary="${#UPDATED_SERVICES[@]} servicio(s) actualizado(s), ${#UNCHANGED_SERVICES[@]} sin cambios."
+summary="${#UPDATED_SERVICES[@]} servicio(s) con actualizacion aplicada, ${#UNCHANGED_SERVICES[@]} con imagen sin cambios."
 log "$summary"; [ "${#UPDATED_SERVICES[@]}" -eq 0 ] || notify success "$summary Servicios: ${UPDATED_SERVICES[*]}"

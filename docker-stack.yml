@@ -177,6 +177,7 @@ services:
       SERVER_PORT: "8101"
       SERVICE_PORT: "8101"
       SERVICE_NAME: losmolinos-store-backend
+      APP_ORGANIZATION_NAME: ${LOSMOLINOS_BUSINESS_NAME:-Los Molinos}
       SERVICE_URL: http://losmolinos-store-backend:8101
       SERVICE_BASE_URL: https://grupowagj.duckdns.org/losmolinos/store
     volumes:
@@ -224,6 +225,7 @@ services:
       APP_BASE_HREF: /losmolinos/store/
       API_URL: https://grupowagj.duckdns.org/losmolinos/store-api
       WS_URL: https://grupowagj.duckdns.org/losmolinos/store-api/ws-inventario
+      BUSINESS_NAME: ${LOSMOLINOS_BUSINESS_NAME:-Los Molinos}
       SSR_API_URL: http://losmolinos-store-backend:8101
     volumes: [losmolinos-store-frontend-data:/app/data, /etc/timezone:/etc/timezone:ro]
     networks: [public-net]
@@ -258,6 +260,7 @@ services:
       SERVER_PORT: "8102"
       SERVICE_PORT: "8102"
       SERVICE_NAME: crecilandia-store-backend
+      APP_ORGANIZATION_NAME: ${CRECILANDIA_BUSINESS_NAME:-Crecilandia}
       SERVICE_URL: http://crecilandia-store-backend:8102
       SERVICE_BASE_URL: https://grupowagj.duckdns.org/crecilandia/store
     volumes:
@@ -305,6 +308,7 @@ services:
       APP_BASE_HREF: /crecilandia/store/
       API_URL: https://grupowagj.duckdns.org/crecilandia/store-api
       WS_URL: https://grupowagj.duckdns.org/crecilandia/store-api/ws-inventario
+      BUSINESS_NAME: ${CRECILANDIA_BUSINESS_NAME:-Crecilandia}
       SSR_API_URL: http://crecilandia-store-backend:8102
     volumes: [crecilandia-store-frontend-data:/app/data, /etc/timezone:/etc/timezone:ro]
     networks: [public-net]
