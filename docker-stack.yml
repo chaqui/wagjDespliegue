@@ -343,6 +343,7 @@ services:
       SERVER_PORT: "8001"
       SERVICE_PORT: "8001"
       SERVICE_NAME: losmolinos-restaurante-backend
+      RESTAURANT_NAME: ${LOSMOLINOS_RESTAURANT_NAME:-Restaurante Los Molinos}
       SERVICE_URL: https://grupowagj.duckdns.org/losmolinos/restaurante 
       SERVICE_BASE_URL: http://losmolinos-restaurante-backend:8001
       AUTH_PUBLIC_KEY_PATH: /run/secrets/auth_public_key.pem
@@ -394,6 +395,7 @@ services:
       APP_BASE_HREF: /losmolinos/restaurante/
       API_URL: https://grupowagj.duckdns.org/losmolinos/restaurante-api
       WS_URL: https://grupowagj.duckdns.org/losmolinos/restaurante-api/ws-inventario
+      RESTAURANT_NAME: ${LOSMOLINOS_RESTAURANT_NAME:-Restaurante Los Molinos}
       SSR_API_URL: http://losmolinos-restaurante-backend:8001
     volumes: [losmolinos-restaurante-frontend-data:/app/data, /etc/timezone:/etc/timezone:ro]
     networks: [public-net]
@@ -428,6 +430,7 @@ services:
       SERVER_PORT: "8001"
       SERVICE_PORT: "8001"
       SERVICE_NAME: crecilandia-restaurante-backend
+      RESTAURANT_NAME: ${CRECILANDIA_RESTAURANT_NAME:-Restaurante Crecilandia}
       SERVICE_URL: https://grupowagj.duckdns.org/crecilandia/restaurante
       SERVICE_BASE_URL: http://crecilandia-restaurante-backend:8001
       AUTH_PUBLIC_KEY_PATH: /run/secrets/auth_public_key.pem
@@ -479,6 +482,7 @@ services:
       APP_BASE_HREF: /crecilandia/restaurante/
       API_URL: https://grupowagj.duckdns.org/crecilandia/restaurante-api
       WS_URL: https://grupowagj.duckdns.org/crecilandia/restaurante-api/ws-inventario
+      RESTAURANT_NAME: ${CRECILANDIA_RESTAURANT_NAME:-Restaurante Crecilandia}
       SSR_API_URL: http://crecilandia-restaurante-backend:8001
     volumes: [crecilandia-restaurante-frontend-data:/app/data, /etc/timezone:/etc/timezone:ro]
     networks: [public-net]
